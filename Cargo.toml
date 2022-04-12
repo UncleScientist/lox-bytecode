@@ -10,3 +10,4 @@ edition = "2021"
 
 [features]
 debug_trace_execution = []
+default = ["debug_trace_execution"]
