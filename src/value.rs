@@ -22,4 +22,8 @@ impl ValueArray {
     pub fn print_value(&self, which: usize) {
         print!("{}", self.values[which]);
     }
+
+    pub fn read_value(&self, which: usize) -> Value {
+        self.values[which]
+    }
 }
