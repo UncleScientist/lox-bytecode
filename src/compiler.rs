@@ -201,13 +201,11 @@ impl<'a> Compiler<'a> {
 
     fn get_rule(&self, ttype: TokenType) -> ParseRule {
         match ttype {
-            /*
             TokenType::LeftParen => ParseRule {
-                prefix: Some(Compiler::grouping),
+                prefix: Some(|c| c.grouping()),
                 infix: None,
                 precedence: Precedence::None,
             },
-            */
             _ => ParseRule {
                 prefix: None,
                 infix: None,
