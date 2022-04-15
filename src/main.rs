@@ -1,8 +1,14 @@
 use std::env::args;
 use std::io::{self, stdout, BufRead, Write};
 
+pub enum InterpretResult {
+    CompileError,
+    RuntimeError,
+}
+
 mod compiler;
 mod scanner;
+mod token;
 mod value;
 
 mod vm;
@@ -48,8 +54,8 @@ fn repl(vm: &mut VM) {
 fn run_file(vm: &mut VM, path: &str) -> io::Result<()> {
     let buf = std::fs::read_to_string(path)?;
     match vm.interpret(&buf) {
-        InterpretResult::CompileError => std::process::exit(65),
-        InterpretResult::RuntimeError => std::process::exit(70),
-        InterpretResult::Ok => std::process::exit(0),
+        Err(InterpretResult::CompileError) => std::process::exit(65),
+        Err(InterpretResult::RuntimeError) => std::process::exit(70),
+        Ok(_) => std::process::exit(0),
     }
 }
