@@ -43,7 +43,7 @@ impl VM {
             let instruction = self.read_byte(chunk);
             match instruction {
                 OpCode::Return => {
-                    println!("{}", self.stack.pop().unwrap());
+                    println!("{}", self.pop());
                     return Ok(());
                 }
                 OpCode::Constant => {
@@ -51,7 +51,11 @@ impl VM {
                     self.stack.push(constant);
                 }
                 OpCode::Negate => {
-                    let value = self.stack.pop().unwrap();
+                    if !self.peek(0).is_number() {
+                        return self.runtime_error(chunk, &"Operand must be a number.");
+                    }
+
+                    let value = self.pop();
                     self.stack.push(-value);
                 }
                 OpCode::Add => self.binary_op(|a, b| a + b),
@@ -60,6 +64,18 @@ impl VM {
                 OpCode::Divide => self.binary_op(|a, b| a / b),
             }
         }
+    }
+
+    fn pop(&mut self) -> Value {
+        self.stack.pop().unwrap()
+    }
+
+    fn peek(&self, distance: usize) -> Value {
+        self.stack[self.stack.len() - distance - 1]
+    }
+
+    fn reset_stack(&mut self) {
+        self.stack.clear();
     }
 
     fn read_byte(&mut self, chunk: &Chunk) -> OpCode {
@@ -75,8 +91,23 @@ impl VM {
     }
 
     fn binary_op(&mut self, op: fn(a: Value, b: Value) -> Value) {
-        let b = self.stack.pop().unwrap();
-        let a = self.stack.pop().unwrap();
+        /*if !self.peek(0).is_number() || !self.peek(1).is_number() {
+        return self.runtime_error( */
+        let b = self.pop();
+        let a = self.pop();
         self.stack.push(op(a, b));
+    }
+
+    fn runtime_error<T: ToString>(
+        &mut self,
+        chunk: &Chunk,
+        err_msg: &T,
+    ) -> Result<(), InterpretResult> {
+        let line = chunk.get_line(self.ip - 1);
+        eprintln!("{}", err_msg.to_string());
+        eprintln!("[line {line}] in script");
+        self.reset_stack();
+
+        Err(InterpretResult::RuntimeError)
     }
 }

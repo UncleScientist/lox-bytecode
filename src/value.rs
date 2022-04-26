@@ -73,6 +73,16 @@ impl Neg for Value {
     }
 }
 
+impl Value {
+    pub fn is_number(&self) -> bool {
+        if let Value::Number(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub struct ValueArray {
     values: Vec<Value>,
 }
