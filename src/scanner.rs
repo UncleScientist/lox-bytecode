@@ -8,7 +8,7 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new(source: &String) -> Self {
+    pub fn new(source: &str) -> Self {
         Self {
             source: source.chars().collect::<Vec<char>>(),
             start: 0,

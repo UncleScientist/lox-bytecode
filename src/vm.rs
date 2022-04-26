@@ -16,7 +16,7 @@ impl VM {
 
     pub fn free(&mut self) {}
 
-    pub fn interpret(&mut self, source: &String) -> Result<(), InterpretResult> {
+    pub fn interpret(&mut self, source: &str) -> Result<(), InterpretResult> {
         let mut chunk = Chunk::new();
         let mut compiler = Compiler::new(&mut chunk);
         compiler.compile(source)?;

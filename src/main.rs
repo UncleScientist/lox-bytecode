@@ -6,6 +6,7 @@ pub enum InterpretResult {
     RuntimeError,
 }
 
+mod chunk;
 mod compiler;
 mod scanner;
 mod token;
@@ -13,9 +14,6 @@ mod value;
 
 mod vm;
 use vm::*;
-
-mod chunk;
-use chunk::*;
 
 fn main() {
     let args: Vec<String> = args().collect();

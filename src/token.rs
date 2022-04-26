@@ -26,7 +26,7 @@ impl Clone for Token {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
-    LeftParen,
+    LeftParen = 0,
     RightParen,
     LeftBrace,
     RightBrace,
@@ -67,4 +67,5 @@ pub enum TokenType {
     Error,
     Eof,
     Undefined,
+    NumberOfTokens,
 }

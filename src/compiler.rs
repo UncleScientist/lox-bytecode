@@ -10,6 +10,7 @@ pub struct Compiler<'a> {
     parser: Parser,
     scanner: Scanner,
     chunk: &'a mut Chunk,
+    rules: Vec<ParseRule>,
 }
 
 #[derive(Default)]
@@ -20,6 +21,7 @@ pub struct Parser {
     panic_mode: RefCell<bool>,
 }
 
+#[derive(Copy, Clone)]
 struct ParseRule {
     prefix: Option<fn(&mut Compiler)>,
     infix: Option<fn(&mut Compiler)>,
@@ -80,20 +82,59 @@ impl Precedence {
 
 impl<'a> Compiler<'a> {
     pub fn new(chunk: &'a mut Chunk) -> Self {
+        // lazy_static instead?
+        let mut rules = vec![
+            ParseRule {
+                prefix: None,
+                infix: None,
+                precedence: Precedence::None,
+            };
+            TokenType::NumberOfTokens as usize
+        ];
+        rules[TokenType::LeftParen as usize] = ParseRule {
+            prefix: Some(|c| c.grouping()),
+            infix: None,
+            precedence: Precedence::None,
+        };
+        rules[TokenType::Minus as usize] = ParseRule {
+            prefix: Some(|c| c.unary()),
+            infix: Some(|c| c.binary()),
+            precedence: Precedence::Term,
+        };
+        rules[TokenType::Plus as usize] = ParseRule {
+            prefix: None,
+            infix: Some(|c| c.binary()),
+            precedence: Precedence::Term,
+        };
+        rules[TokenType::Slash as usize] = ParseRule {
+            prefix: None,
+            infix: Some(|c| c.binary()),
+            precedence: Precedence::Factor,
+        };
+        rules[TokenType::Star as usize] = ParseRule {
+            prefix: None,
+            infix: Some(|c| c.binary()),
+            precedence: Precedence::Factor,
+        };
+        rules[TokenType::Number as usize] = ParseRule {
+            prefix: Some(|c| c.number()),
+            infix: None,
+            precedence: Precedence::None,
+        };
+
         Self {
             parser: Parser::default(),
             scanner: Scanner::new(&"".to_string()),
             chunk,
+            rules,
         }
     }
 
-    pub fn compile(&mut self, source: &String) -> Result<(), InterpretResult> {
+    pub fn compile(&mut self, source: &str) -> Result<(), InterpretResult> {
         self.scanner = Scanner::new(source);
         self.advance();
 
-        /*
-        self.expression()?;
-        */
+        self.expression();
 
         self.consume(TokenType::Eof, "Expect end of expression.");
 
@@ -162,9 +203,9 @@ impl<'a> Compiler<'a> {
 
     fn binary(&mut self) {
         let operator_type = self.parser.previous.ttype;
-        let rule = self.get_rule(operator_type);
+        let rule = self.rules[operator_type as usize].precedence.next();
 
-        self.parse_precedence(rule.precedence.next());
+        self.parse_precedence(rule);
 
         match operator_type {
             TokenType::Plus => self.emit_byte(OpCode::Add.into()),
@@ -197,20 +238,19 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn parse_precedence(&self, precedence: Precedence) {}
+    fn parse_precedence(&mut self, precedence: Precedence) {
+        self.advance();
+        if let Some(prefix_rule) = self.rules[self.parser.previous.ttype as usize].prefix {
+            prefix_rule(self);
 
-    fn get_rule(&self, ttype: TokenType) -> ParseRule {
-        match ttype {
-            TokenType::LeftParen => ParseRule {
-                prefix: Some(|c| c.grouping()),
-                infix: None,
-                precedence: Precedence::None,
-            },
-            _ => ParseRule {
-                prefix: None,
-                infix: None,
-                precedence: Precedence::None,
-            },
+            while precedence <= self.rules[self.parser.current.ttype as usize].precedence {
+                self.advance();
+                if let Some(infix_rule) = self.rules[self.parser.previous.ttype as usize].infix {
+                    infix_rule(self);
+                }
+            }
+        } else {
+            self.error("Expect expression.");
         }
     }
 
