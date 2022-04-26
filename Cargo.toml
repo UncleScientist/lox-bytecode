@@ -10,4 +10,5 @@ edition = "2021"
 
 [features]
 debug_trace_execution = []
-default = ["debug_trace_execution"]
+debug_print_code = []
+default = ["debug_trace_execution", "debug_print_code"]
