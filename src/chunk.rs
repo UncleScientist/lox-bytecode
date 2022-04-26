@@ -30,11 +30,6 @@ impl Chunk {
         self.lines.push(line);
     }
 
-    pub fn write_opcode(&mut self, code: OpCode, line: usize) {
-        self.code.push(code.into());
-        self.lines.push(line);
-    }
-
     pub fn read(&self, ip: usize) -> u8 {
         self.code[ip]
     }

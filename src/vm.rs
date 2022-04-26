@@ -22,7 +22,10 @@ impl VM {
         compiler.compile(source)?;
 
         self.ip = 0;
-        self.run(&chunk)
+        let result = self.run(&chunk);
+        chunk.free();
+
+        result
     }
 
     fn run(&mut self, chunk: &Chunk) -> Result<(), InterpretResult> {

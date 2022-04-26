@@ -71,6 +71,7 @@ impl Precedence {
         (p + 1).into()
     }
 
+    /*
     fn previous(self) -> Self {
         if self == Precedence::None {
             panic!("no previous before None");
@@ -78,6 +79,7 @@ impl Precedence {
         let p = self as usize;
         (p - 1).into()
     }
+    */
 }
 
 impl<'a> Compiler<'a> {
