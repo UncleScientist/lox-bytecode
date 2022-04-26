@@ -228,8 +228,8 @@ impl<'a> Compiler<'a> {
     }
 
     fn number(&mut self) {
-        let value = self.parser.previous.lexeme.parse::<Value>().unwrap();
-        self.emit_constant(value);
+        let value = self.parser.previous.lexeme.parse::<f64>().unwrap();
+        self.emit_constant(Value::Number(value));
     }
 
     fn unary(&mut self) {
