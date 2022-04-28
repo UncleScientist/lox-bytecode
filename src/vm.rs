@@ -53,6 +53,13 @@ impl VM {
                 OpCode::Nil => self.stack.push(Value::Nil),
                 OpCode::True => self.stack.push(Value::Boolean(true)),
                 OpCode::False => self.stack.push(Value::Boolean(false)),
+                OpCode::Equal => {
+                    let b = self.pop();
+                    let a = self.pop();
+                    self.stack.push(Value::Boolean(a == b));
+                }
+                OpCode::Greater => self.binary_op(|a, b| Value::Boolean(a > b))?,
+                OpCode::Less => self.binary_op(|a, b| Value::Boolean(a < b))?,
                 OpCode::Add => self.binary_op(|a, b| a + b)?,
                 OpCode::Subtract => self.binary_op(|a, b| a - b)?,
                 OpCode::Multiply => self.binary_op(|a, b| a * b)?,
