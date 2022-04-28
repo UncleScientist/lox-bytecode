@@ -8,6 +8,9 @@ pub enum OpCode {
     Subtract,
     Multiply,
     Divide,
+    Nil,
+    True,
+    False,
 }
 
 pub struct Chunk {
@@ -74,6 +77,9 @@ impl Chunk {
             OpCode::Subtract => self.simple_instruction("OP_SUBTRACT", offset),
             OpCode::Multiply => self.simple_instruction("OP_MULTIPLY", offset),
             OpCode::Divide => self.simple_instruction("OP_DIVIDE", offset),
+            OpCode::Nil => self.simple_instruction("OP_NIL", offset),
+            OpCode::True => self.simple_instruction("OP_TRUE", offset),
+            OpCode::False => self.simple_instruction("OP_FALSE", offset),
         }
     }
 
@@ -101,6 +107,9 @@ impl From<u8> for OpCode {
             4 => OpCode::Subtract,
             5 => OpCode::Multiply,
             6 => OpCode::Divide,
+            7 => OpCode::Nil,
+            8 => OpCode::True,
+            9 => OpCode::False,
             _ => unimplemented!("Invalid opcode"),
         }
     }
