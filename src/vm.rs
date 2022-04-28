@@ -53,6 +53,14 @@ impl VM {
                 OpCode::Nil => self.stack.push(Value::Nil),
                 OpCode::True => self.stack.push(Value::Boolean(true)),
                 OpCode::False => self.stack.push(Value::Boolean(false)),
+                OpCode::Add => self.binary_op(|a, b| a + b)?,
+                OpCode::Subtract => self.binary_op(|a, b| a - b)?,
+                OpCode::Multiply => self.binary_op(|a, b| a * b)?,
+                OpCode::Divide => self.binary_op(|a, b| a / b)?,
+                OpCode::Not => {
+                    let value = self.pop();
+                    self.stack.push(Value::Boolean(value.is_falsy()))
+                }
                 OpCode::Negate => {
                     if !self.peek(0).is_number() {
                         return self.runtime_error(&"Operand must be a number.");
@@ -61,10 +69,6 @@ impl VM {
                     let value = self.pop();
                     self.stack.push(-value);
                 }
-                OpCode::Add => self.binary_op(|a, b| a + b)?,
-                OpCode::Subtract => self.binary_op(|a, b| a - b)?,
-                OpCode::Multiply => self.binary_op(|a, b| a * b)?,
-                OpCode::Divide => self.binary_op(|a, b| a / b)?,
             }
         }
     }
