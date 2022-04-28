@@ -58,10 +58,10 @@ impl VM {
                     let value = self.pop();
                     self.stack.push(-value);
                 }
-                OpCode::Add => self.binary_op(|a, b| a + b),
-                OpCode::Subtract => self.binary_op(|a, b| a - b),
-                OpCode::Multiply => self.binary_op(|a, b| a * b),
-                OpCode::Divide => self.binary_op(|a, b| a / b),
+                OpCode::Add => self.binary_op(|a, b| a + b)?,
+                OpCode::Subtract => self.binary_op(|a, b| a - b)?,
+                OpCode::Multiply => self.binary_op(|a, b| a * b)?,
+                OpCode::Divide => self.binary_op(|a, b| a / b)?,
             }
         }
     }
@@ -90,12 +90,15 @@ impl VM {
         self.chunk.get_constant(index)
     }
 
-    fn binary_op(&mut self, op: fn(a: Value, b: Value) -> Value) {
-        /*if !self.peek(0).is_number() || !self.peek(1).is_number() {
-        return self.runtime_error( */
+    fn binary_op(&mut self, op: fn(a: Value, b: Value) -> Value) -> Result<(), InterpretResult> {
+        if !self.peek(0).is_number() || !self.peek(1).is_number() {
+            return self.runtime_error(&"Operands must be numbers");
+        }
+
         let b = self.pop();
         let a = self.pop();
         self.stack.push(op(a, b));
+        Ok(())
     }
 
     fn runtime_error<T: ToString>(&mut self, err_msg: &T) -> Result<(), InterpretResult> {
