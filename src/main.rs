@@ -27,8 +27,6 @@ fn main() {
             std::process::exit(64);
         }
     }
-
-    vm.free();
 }
 
 fn repl(vm: &mut VM) {

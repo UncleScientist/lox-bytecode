@@ -38,11 +38,6 @@ impl Chunk {
         self.lines[ip]
     }
 
-    pub fn free(&mut self) {
-        self.code = Vec::new();
-        self.constants.free();
-    }
-
     pub fn add_constant(&mut self, value: Value) -> Option<u8> {
         let idx = self.constants.write(value);
         u8::try_from(idx).ok()

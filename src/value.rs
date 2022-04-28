@@ -75,11 +75,7 @@ impl Neg for Value {
 
 impl Value {
     pub fn is_number(&self) -> bool {
-        if let Value::Number(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Value::Number(_))
     }
 }
 
@@ -96,10 +92,6 @@ impl ValueArray {
         let count = self.values.len();
         self.values.push(value);
         count
-    }
-
-    pub fn free(&mut self) {
-        self.values = Vec::new();
     }
 
     pub fn print_value(&self, which: usize) {
