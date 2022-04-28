@@ -1,12 +1,13 @@
 use std::rc::Rc;
 
 use super::*;
-use crate::{chunk::*, compiler::*, value::*};
+use crate::{chunk::*, compiler::*, object::*, value::*};
 
 pub struct VM {
     ip: usize,
     stack: Vec<Value>,
     chunk: Rc<Chunk>,
+    memory: Vec<Obj>,
 }
 
 impl VM {
@@ -15,6 +16,7 @@ impl VM {
             ip: 0,
             stack: Vec::new(),
             chunk: Rc::new(Chunk::new()),
+            memory: Vec::new(),
         }
     }
 

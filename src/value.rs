@@ -1,11 +1,14 @@
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::object::*;
+
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     Boolean(bool),
     Number(f64),
     Nil,
+    Obj(usize),
 }
 
 impl Display for Value {
@@ -14,6 +17,7 @@ impl Display for Value {
             Value::Boolean(b) => write!(f, "{b}"),
             Value::Number(n) => write!(f, "{n}"),
             Value::Nil => write!(f, "nil"),
+            Value::Obj(o) => write!(f, "Object[{o}]"),
         }
     }
 }
@@ -85,17 +89,27 @@ impl Value {
 
 pub struct ValueArray {
     values: Vec<Value>,
+    objects: Vec<Obj>,
 }
 
 impl ValueArray {
     pub fn new() -> Self {
-        Self { values: Vec::new() }
+        Self {
+            values: Vec::new(),
+            objects: Vec::new(),
+        }
     }
 
     pub fn write(&mut self, value: Value) -> usize {
         let count = self.values.len();
         self.values.push(value);
         count
+    }
+
+    pub fn make_object_string(&mut self, s: String) -> usize {
+        let ret = self.objects.len();
+        self.objects.push(Obj::String(s));
+        ret
     }
 
     pub fn print_value(&self, which: usize) {
