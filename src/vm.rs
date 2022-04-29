@@ -42,6 +42,9 @@ impl VM {
 
             let instruction = self.read_byte();
             match instruction {
+                OpCode::Pop => {
+                    self.pop();
+                }
                 OpCode::Print => {
                     println!("{}", self.pop());
                 }

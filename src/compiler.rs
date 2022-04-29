@@ -314,6 +314,12 @@ impl<'a> Compiler<'a> {
         self.parse_precedence(Precedence::Assignment);
     }
 
+    fn expression_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::SemiColon, "Expect ';' after expression.");
+        self.emit_byte(OpCode::Pop.into());
+    }
+
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::SemiColon, "Expect ';' after value.");
@@ -327,6 +333,8 @@ impl<'a> Compiler<'a> {
     fn statement(&mut self) {
         if self.is_match(TokenType::Print) {
             self.print_statement();
+        } else {
+            self.expression_statement();
         }
     }
 
