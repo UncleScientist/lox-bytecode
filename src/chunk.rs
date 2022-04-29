@@ -15,6 +15,7 @@ pub enum OpCode {
     Equal,
     Greater,
     Less,
+    Print,
 }
 
 pub struct Chunk {
@@ -88,6 +89,7 @@ impl Chunk {
             OpCode::Equal => self.simple_instruction("OP_EQUAL", offset),
             OpCode::Greater => self.simple_instruction("OP_GREATER", offset),
             OpCode::Less => self.simple_instruction("OP_LESS", offset),
+            OpCode::Print => self.simple_instruction("OP_PRINT", offset),
         }
     }
 
@@ -122,6 +124,7 @@ impl From<u8> for OpCode {
             11 => OpCode::Equal,
             12 => OpCode::Greater,
             13 => OpCode::Less,
+            14 => OpCode::Print,
             _ => unimplemented!("Invalid opcode"),
         }
     }
