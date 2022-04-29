@@ -94,6 +94,10 @@ impl Value {
     pub fn is_falsy(&self) -> bool {
         matches!(self, Value::Nil | Value::Boolean(false))
     }
+
+    pub fn is_string(&self) -> bool {
+        matches!(self, Value::Str(_))
+    }
 }
 
 pub struct ValueArray {
