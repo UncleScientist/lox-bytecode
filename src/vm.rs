@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::*;
@@ -7,6 +8,7 @@ pub struct VM {
     ip: usize,
     stack: Vec<Value>,
     chunk: Rc<Chunk>,
+    globals: HashMap<String, Value>,
 }
 
 impl VM {
@@ -15,6 +17,7 @@ impl VM {
             ip: 0,
             stack: Vec::new(),
             chunk: Rc::new(Chunk::new()),
+            globals: HashMap::new(),
         }
     }
 
@@ -42,6 +45,15 @@ impl VM {
 
             let instruction = self.read_byte();
             match instruction {
+                OpCode::DefineGlobal => {
+                    let constant = self.read_constant().clone();
+                    if let Value::Str(s) = constant {
+                        let p = self.pop();
+                        self.globals.insert(s, p.clone());
+                    } else {
+                        panic!("Unable to read constant from table");
+                    }
+                }
                 OpCode::Pop => {
                     self.pop();
                 }
