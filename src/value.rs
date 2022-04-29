@@ -1,14 +1,23 @@
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::object::*;
-
-#[derive(Copy, Clone, PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd)]
 pub enum Value {
     Boolean(bool),
     Number(f64),
     Nil,
-    Obj(usize),
+    Str(String),
+}
+
+impl Clone for Value {
+    fn clone(&self) -> Self {
+        match self {
+            Value::Boolean(b) => Value::Boolean(*b),
+            Value::Number(n) => Value::Number(*n),
+            Value::Nil => Value::Nil,
+            Value::Str(s) => Value::Str(s.clone()),
+        }
+    }
 }
 
 impl Display for Value {
@@ -17,7 +26,7 @@ impl Display for Value {
             Value::Boolean(b) => write!(f, "{b}"),
             Value::Number(n) => write!(f, "{n}"),
             Value::Nil => write!(f, "nil"),
-            Value::Obj(o) => write!(f, "Object[{o}]"),
+            Value::Str(s) => write!(f, "{s}"),
         }
     }
 }
@@ -89,15 +98,11 @@ impl Value {
 
 pub struct ValueArray {
     values: Vec<Value>,
-    objects: Vec<Obj>,
 }
 
 impl ValueArray {
     pub fn new() -> Self {
-        Self {
-            values: Vec::new(),
-            objects: Vec::new(),
-        }
+        Self { values: Vec::new() }
     }
 
     pub fn write(&mut self, value: Value) -> usize {
@@ -106,17 +111,11 @@ impl ValueArray {
         count
     }
 
-    pub fn make_object_string(&mut self, s: String) -> usize {
-        let ret = self.objects.len();
-        self.objects.push(Obj::String(s));
-        ret
-    }
-
     pub fn print_value(&self, which: usize) {
         print!("{}", self.values[which]);
     }
 
-    pub fn read_value(&self, which: usize) -> Value {
-        self.values[which]
+    pub fn read_value(&self, which: usize) -> &Value {
+        &self.values[which]
     }
 }

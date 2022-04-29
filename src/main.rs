@@ -8,7 +8,6 @@ pub enum InterpretResult {
 
 mod chunk;
 mod compiler;
-mod object;
 mod scanner;
 mod token;
 mod value;

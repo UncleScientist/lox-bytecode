@@ -1,13 +1,12 @@
 use std::rc::Rc;
 
 use super::*;
-use crate::{chunk::*, compiler::*, object::*, value::*};
+use crate::{chunk::*, compiler::*, value::*};
 
 pub struct VM {
     ip: usize,
     stack: Vec<Value>,
     chunk: Rc<Chunk>,
-    memory: Vec<Obj>,
 }
 
 impl VM {
@@ -16,7 +15,6 @@ impl VM {
             ip: 0,
             stack: Vec::new(),
             chunk: Rc::new(Chunk::new()),
-            memory: Vec::new(),
         }
     }
 
@@ -49,7 +47,7 @@ impl VM {
                     return Ok(());
                 }
                 OpCode::Constant => {
-                    let constant = self.read_constant();
+                    let constant = self.read_constant().clone();
                     self.stack.push(constant);
                 }
                 OpCode::Nil => self.stack.push(Value::Nil),
@@ -86,8 +84,8 @@ impl VM {
         self.stack.pop().unwrap()
     }
 
-    fn peek(&self, distance: usize) -> Value {
-        self.stack[self.stack.len() - distance - 1]
+    fn peek(&self, distance: usize) -> &Value {
+        &self.stack[self.stack.len() - distance - 1]
     }
 
     fn reset_stack(&mut self) {
@@ -100,7 +98,7 @@ impl VM {
         val
     }
 
-    fn read_constant(&mut self) -> Value {
+    fn read_constant(&mut self) -> &Value {
         let index = self.chunk.read(self.ip) as usize;
         self.ip += 1;
         self.chunk.get_constant(index)

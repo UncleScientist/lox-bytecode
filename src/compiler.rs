@@ -264,10 +264,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn string(&mut self) {
-        let len = self.parser.previous.lexeme.len() - 2;
-        let value = self.parser.previous.lexeme[1..len].to_string();
-        let constant = self.chunk.make_object_string(value);
-        self.emit_constant(constant);
+        let len = self.parser.previous.lexeme.len() - 1;
+        let string = self.parser.previous.lexeme[1..len].to_string();
+        self.emit_constant(Value::Str(string));
     }
 
     fn unary(&mut self) {
