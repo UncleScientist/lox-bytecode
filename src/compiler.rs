@@ -326,8 +326,36 @@ impl<'a> Compiler<'a> {
         self.emit_byte(OpCode::Print.into());
     }
 
+    fn synchronize(&mut self) {
+        self.parser.panic_mode.replace(false);
+
+        while self.parser.current.ttype != TokenType::Eof {
+            if self.parser.previous.ttype == TokenType::SemiColon {
+                return;
+            }
+            if matches!(
+                self.parser.current.ttype,
+                TokenType::Class
+                    | TokenType::Fun
+                    | TokenType::Var
+                    | TokenType::For
+                    | TokenType::If
+                    | TokenType::While
+                    | TokenType::Print
+                    | TokenType::Return
+            ) {
+                return;
+            }
+            self.advance();
+        }
+    }
+
     fn declaration(&mut self) {
         self.statement();
+
+        if *self.parser.panic_mode.borrow() {
+            self.synchronize();
+        }
     }
 
     fn statement(&mut self) {
