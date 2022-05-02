@@ -43,7 +43,7 @@ impl VM {
                 self.chunk.disassemble_instruction(self.ip);
             }
 
-            let instruction = self.read_byte();
+            let instruction: OpCode = self.read_byte().into();
             match instruction {
                 OpCode::DefineGlobal => {
                     let constant = self.read_constant().clone();
@@ -79,6 +79,14 @@ impl VM {
                 }
                 OpCode::Pop => {
                     self.pop();
+                }
+                OpCode::GetLocal => {
+                    let slot = self.read_byte() as usize;
+                    self.stack.push(self.stack[slot].clone());
+                }
+                OpCode::SetLocal => {
+                    let slot = self.read_byte() as usize;
+                    self.stack[slot] = self.peek(0).clone();
                 }
                 OpCode::Print => {
                     println!("{}", self.pop());
@@ -132,8 +140,8 @@ impl VM {
         self.stack.clear();
     }
 
-    fn read_byte(&mut self) -> OpCode {
-        let val: OpCode = self.chunk.read(self.ip).into();
+    fn read_byte(&mut self) -> u8 {
+        let val: u8 = self.chunk.read(self.ip);
         self.ip += 1;
         val
     }
