@@ -45,6 +45,10 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::Loop => {
+                    let offset = self.read_short();
+                    self.ip -= offset;
+                }
                 OpCode::Jump => {
                     let offset = self.read_short();
                     self.ip += offset;
