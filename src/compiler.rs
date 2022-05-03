@@ -220,6 +220,13 @@ impl<'a> Compiler<'a> {
         self.emit_byte(byte2);
     }
 
+    fn emit_jump(&mut self, instruction: OpCode) -> usize {
+        self.emit_byte(instruction.into());
+        self.emit_byte(0xff);
+        self.emit_byte(0xff);
+        self.chunk.count() - 2
+    }
+
     fn emit_return(&mut self) {
         self.emit_byte(OpCode::Return.into());
     }
@@ -236,6 +243,17 @@ impl<'a> Compiler<'a> {
     fn emit_constant(&mut self, value: Value) {
         let constant = self.make_constant(value);
         self.emit_bytes(OpCode::Constant, constant);
+    }
+
+    fn patch_jump(&mut self, offset: usize) {
+        let jump = self.chunk.count() - offset - 2;
+
+        if jump > u16::MAX as usize {
+            self.error("Too much code to jump over.");
+        }
+
+        self.chunk.write_at(offset, ((jump >> 8) & 0xff) as u8);
+        self.chunk.write_at(offset + 1, (jump & 0xff) as u8);
     }
 
     fn end_compiler(&mut self) {
@@ -473,6 +491,17 @@ impl<'a> Compiler<'a> {
         self.emit_byte(OpCode::Pop.into());
     }
 
+    fn if_statement(&mut self) {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.");
+        self.expression();
+        self.consume(TokenType::RightParen, "Expect ')' after condition.");
+
+        let then_jump = self.emit_jump(OpCode::JumpIfFalse);
+        self.statement();
+
+        self.patch_jump(then_jump);
+    }
+
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::SemiColon, "Expect ';' after value.");
@@ -518,6 +547,8 @@ impl<'a> Compiler<'a> {
     fn statement(&mut self) {
         if self.is_match(TokenType::Print) {
             self.print_statement();
+        } else if self.is_match(TokenType::If) {
+            self.if_statement();
         } else if self.is_match(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();

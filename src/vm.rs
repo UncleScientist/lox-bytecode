@@ -45,6 +45,12 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::JumpIfFalse => {
+                    let offset = self.read_short();
+                    if self.peek(0).is_falsy() {
+                        self.ip += offset;
+                    }
+                }
                 OpCode::DefineGlobal => {
                     let constant = self.read_constant().clone();
                     if let Value::Str(s) = constant {
@@ -144,6 +150,11 @@ impl VM {
         let val: u8 = self.chunk.read(self.ip);
         self.ip += 1;
         val
+    }
+
+    fn read_short(&mut self) -> usize {
+        self.ip += 2;
+        self.chunk.get_jump_offset(self.ip - 2)
     }
 
     fn read_constant(&mut self) -> &Value {

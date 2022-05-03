@@ -22,6 +22,7 @@ pub enum OpCode {
     SetGlobal,
     GetLocal,
     SetLocal,
+    JumpIfFalse,
 }
 
 pub struct Chunk {
@@ -44,6 +45,10 @@ impl Chunk {
         self.lines.push(line);
     }
 
+    pub fn write_at(&mut self, offset: usize, byte: u8) {
+        self.code[offset] = byte;
+    }
+
     pub fn read(&self, ip: usize) -> u8 {
         self.code[ip]
     }
@@ -59,6 +64,14 @@ impl Chunk {
 
     pub fn get_constant(&self, index: usize) -> &Value {
         self.constants.read_value(index)
+    }
+
+    pub fn count(&self) -> usize {
+        self.lines.len()
+    }
+
+    pub fn get_jump_offset(&self, offset: usize) -> usize {
+        ((self.code[offset] as usize) << 8) | self.code[offset + 1] as usize
     }
 
     pub fn disassemble<T: ToString>(&self, name: T) {
@@ -102,6 +115,7 @@ impl Chunk {
             OpCode::SetGlobal => self.constant_instruction("OP_SET_GLOBAL", offset),
             OpCode::GetLocal => self.byte_instruction("OP_GET_LOCAL", offset),
             OpCode::SetLocal => self.byte_instruction("OP_SET_LOCAL", offset),
+            OpCode::JumpIfFalse => self.jump_instruction("OP_JUMP_IF_FALSE", 1, offset),
         }
     }
 
@@ -114,6 +128,17 @@ impl Chunk {
         let slot = self.code[offset + 1];
         println!("{name:-16} {slot:4}");
         offset + 2
+    }
+
+    fn jump_instruction(&self, name: &str, sign: i16, offset: usize) -> usize {
+        let jump = self.get_jump_offset(offset + 1);
+        let jump_to = if sign == 1 {
+            offset + 3 + jump
+        } else {
+            offset + 3 - jump
+        };
+        println!("{name:-16} {offset:4} -> {jump_to}");
+        offset + 3
     }
 
     fn constant_instruction(&self, name: &str, offset: usize) -> usize {
@@ -149,6 +174,7 @@ impl From<u8> for OpCode {
             18 => OpCode::SetGlobal,
             19 => OpCode::GetLocal,
             20 => OpCode::SetLocal,
+            21 => OpCode::JumpIfFalse,
             _ => unimplemented!("Invalid opcode"),
         }
     }
