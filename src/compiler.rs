@@ -497,9 +497,18 @@ impl<'a> Compiler<'a> {
         self.consume(TokenType::RightParen, "Expect ')' after condition.");
 
         let then_jump = self.emit_jump(OpCode::JumpIfFalse);
+        self.emit_byte(OpCode::Pop.into());
         self.statement();
 
+        let else_jump = self.emit_jump(OpCode::Jump);
+
         self.patch_jump(then_jump);
+        self.emit_byte(OpCode::Pop.into());
+
+        if self.is_match(TokenType::Else) {
+            self.statement();
+        }
+        self.patch_jump(else_jump);
     }
 
     fn print_statement(&mut self) {
