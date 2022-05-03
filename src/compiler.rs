@@ -151,6 +151,9 @@ impl<'a> Compiler<'a> {
         rules[TokenType::And as usize].infix = Some(Compiler::and);
         rules[TokenType::And as usize].precedence = Precedence::And;
 
+        rules[TokenType::Or as usize].infix = Some(Compiler::or);
+        rules[TokenType::Or as usize].precedence = Precedence::Or;
+
         Self {
             parser: Parser::default(),
             scanner: Scanner::new(&"".to_string()),
@@ -320,6 +323,17 @@ impl<'a> Compiler<'a> {
     fn number(&mut self, _: bool) {
         let value = self.parser.previous.lexeme.parse::<f64>().unwrap();
         self.emit_constant(Value::Number(value));
+    }
+
+    fn or(&mut self, _: bool) {
+        let else_jump = self.emit_jump(OpCode::JumpIfFalse);
+        let end_jump = self.emit_jump(OpCode::Jump);
+
+        self.patch_jump(else_jump);
+        self.emit_byte(OpCode::Pop.into());
+
+        self.parse_precedence(Precedence::Or);
+        self.patch_jump(end_jump);
     }
 
     fn string(&mut self, _: bool) {
