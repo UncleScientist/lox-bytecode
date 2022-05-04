@@ -127,6 +127,7 @@ impl ValueArray {
         count
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     pub fn print_value(&self, which: usize) {
         print!("{}", self.values[which]);
     }

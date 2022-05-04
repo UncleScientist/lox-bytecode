@@ -33,6 +33,7 @@ pub struct Chunk {
     constants: ValueArray,
 }
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 #[derive(PartialEq)]
 enum JumpStyle {
     Forwards,
@@ -82,6 +83,7 @@ impl Chunk {
         ((self.code[offset] as usize) << 8) | self.code[offset + 1] as usize
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     pub fn disassemble<T: ToString>(&self, name: T) {
         println!("== {} ==", name.to_string());
 
@@ -91,6 +93,7 @@ impl Chunk {
         }
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     pub fn disassemble_instruction(&self, offset: usize) -> usize {
         use JumpStyle::*;
 
@@ -131,17 +134,20 @@ impl Chunk {
         }
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     fn simple_instruction(&self, name: &str, offset: usize) -> usize {
         println!("{name}");
         offset + 1
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     fn byte_instruction(&self, name: &str, offset: usize) -> usize {
         let slot = self.code[offset + 1];
         println!("{name:-16} {slot:4}");
         offset + 2
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     fn jump_instruction(&self, name: &str, forward_jump: JumpStyle, offset: usize) -> usize {
         let jump = self.get_jump_offset(offset + 1);
         let jump_to = if forward_jump == JumpStyle::Forwards {
@@ -153,6 +159,7 @@ impl Chunk {
         offset + 3
     }
 
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
     fn constant_instruction(&self, name: &str, offset: usize) -> usize {
         let constant = self.code[offset + 1];
         print!("{name:-16} {constant:4} '");
