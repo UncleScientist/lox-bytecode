@@ -1,15 +1,17 @@
 use std::cell::RefCell;
 
 use crate::chunk::*;
+use crate::error::*;
+use crate::function::*;
 use crate::scanner::*;
 use crate::token::*;
 use crate::value::*;
-use crate::*;
 
 pub struct Compiler<'a> {
     parser: Parser,
     scanner: Scanner,
     chunk: &'a mut Chunk,
+    //
     rules: Vec<ParseRule<'a>>,
     locals: RefCell<Vec<Local>>,
     scope_depth: usize,

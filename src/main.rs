@@ -1,16 +1,15 @@
 use std::env::args;
 use std::io::{self, stdout, BufRead, Write};
 
-pub enum InterpretResult {
-    CompileError,
-    RuntimeError,
-}
-
 mod chunk;
 mod compiler;
+mod function;
 mod scanner;
 mod token;
 mod value;
+
+mod error;
+use error::*;
 
 mod vm;
 use vm::*;

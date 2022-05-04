@@ -1,8 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap};
 use std::rc::Rc;
 
-use super::*;
-use crate::{chunk::*, compiler::*, value::*};
+use crate::{chunk::*, compiler::*, error::*, value::*};
 
 pub struct VM {
     ip: usize,
