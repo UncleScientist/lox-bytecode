@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::chunk::*;
 use crate::function::*;
 
 #[derive(PartialEq, PartialOrd)]

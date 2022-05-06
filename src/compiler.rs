@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::chunk::*;
 use crate::error::*;
@@ -7,12 +8,12 @@ use crate::scanner::*;
 use crate::token::*;
 use crate::value::*;
 
-pub struct Compiler<'a> {
+pub struct Compiler {
     parser: Parser,
     scanner: Scanner,
-    chunk: &'a mut Chunk,
-    //
-    rules: Vec<ParseRule<'a>>,
+    chunk: RefCell<Chunk>,
+    current_function: String,
+    rules: Vec<ParseRule>,
     locals: RefCell<Vec<Local>>,
     scope_depth: usize,
 }
@@ -26,9 +27,9 @@ pub struct Parser {
 }
 
 #[derive(Copy, Clone)]
-struct ParseRule<'a> {
-    prefix: Option<fn(&mut Compiler<'a>, bool)>,
-    infix: Option<fn(&mut Compiler<'a>, bool)>,
+struct ParseRule {
+    prefix: Option<fn(&mut Compiler, bool)>,
+    infix: Option<fn(&mut Compiler, bool)>,
     precedence: Precedence,
 }
 
@@ -91,8 +92,8 @@ impl Precedence {
     */
 }
 
-impl<'a> Compiler<'a> {
-    pub fn new(chunk: &'a mut Chunk) -> Self {
+impl Compiler {
+    pub fn new() -> Self {
         // lazy_static instead?
         let mut rules = vec![
             ParseRule {
@@ -159,14 +160,15 @@ impl<'a> Compiler<'a> {
         Self {
             parser: Parser::default(),
             scanner: Scanner::new(&"".to_string()),
-            chunk,
+            chunk: RefCell::new(Chunk::new()),
+            current_function: "<script>".to_string(),
             rules,
             locals: RefCell::new(Vec::new()),
             scope_depth: 0,
         }
     }
 
-    pub fn compile(&mut self, source: &str) -> Result<(), InterpretResult> {
+    pub fn compile(&mut self, source: &str) -> Result<Function, InterpretResult> {
         self.scanner = Scanner::new(source);
         self.advance();
 
@@ -179,7 +181,8 @@ impl<'a> Compiler<'a> {
         if *self.parser.had_error.borrow() {
             Err(InterpretResult::CompileError)
         } else {
-            Ok(())
+            let chunk = self.chunk.replace(Chunk::new());
+            Ok(Function::new(&Rc::new(chunk)))
         }
     }
 
@@ -220,7 +223,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn emit_byte(&mut self, byte: u8) {
-        self.chunk.write(byte, self.parser.previous.line);
+        self.chunk
+            .borrow_mut()
+            .write(byte, self.parser.previous.line);
     }
 
     fn emit_bytes(&mut self, byte1: OpCode, byte2: u8) {
@@ -231,7 +236,7 @@ impl<'a> Compiler<'a> {
     fn emit_loop(&mut self, loop_start: usize) {
         self.emit_byte(OpCode::Loop.into());
 
-        let offset = self.chunk.count() + 2 - loop_start;
+        let offset = self.chunk.borrow().count() + 2 - loop_start;
         if offset > u16::MAX as usize {
             self.error("Loop body too large.");
         }
@@ -244,7 +249,7 @@ impl<'a> Compiler<'a> {
         self.emit_byte(instruction.into());
         self.emit_byte(0xff);
         self.emit_byte(0xff);
-        self.chunk.count() - 2
+        self.chunk.borrow().count() - 2
     }
 
     fn emit_return(&mut self) {
@@ -252,7 +257,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn make_constant(&mut self, value: Value) -> u8 {
-        if let Some(constant) = self.chunk.add_constant(value) {
+        if let Some(constant) = self.chunk.borrow_mut().add_constant(value) {
             constant
         } else {
             self.error("Too many constants in one chunk.");
@@ -266,21 +271,25 @@ impl<'a> Compiler<'a> {
     }
 
     fn patch_jump(&mut self, offset: usize) {
-        let jump = self.chunk.count() - offset - 2;
+        let jump = self.chunk.borrow().count() - offset - 2;
 
         if jump > u16::MAX as usize {
             self.error("Too much code to jump over.");
         }
 
-        self.chunk.write_at(offset, ((jump >> 8) & 0xff) as u8);
-        self.chunk.write_at(offset + 1, (jump & 0xff) as u8);
+        self.chunk
+            .borrow_mut()
+            .write_at(offset, ((jump >> 8) & 0xff) as u8);
+        self.chunk
+            .borrow_mut()
+            .write_at(offset + 1, (jump & 0xff) as u8);
     }
 
     fn end_compiler(&mut self) {
         self.emit_return();
         #[cfg(feature = "debug_print_code")]
         if !*self.parser.had_error.borrow() {
-            self.chunk.disassemble("code");
+            self.chunk.borrow().disassemble(&self.current_function);
         }
     }
 
@@ -540,7 +549,7 @@ impl<'a> Compiler<'a> {
             self.expression_statement(); // consumes semicolon
         }
 
-        let mut loop_start = self.chunk.count();
+        let mut loop_start = self.chunk.borrow().count();
 
         let exit_jump = if self.is_match(TokenType::SemiColon) {
             None
@@ -557,7 +566,7 @@ impl<'a> Compiler<'a> {
 
         if !self.is_match(TokenType::RightParen) {
             let body_jump = self.emit_jump(OpCode::Jump);
-            let increment_start = self.chunk.count();
+            let increment_start = self.chunk.borrow().count();
 
             self.expression();
             self.emit_byte(OpCode::Pop.into());
@@ -606,7 +615,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn while_statement(&mut self) {
-        let loop_start = self.chunk.count();
+        let loop_start = self.chunk.borrow().count();
 
         self.consume(TokenType::LeftParen, "Expect '(' after 'while'.");
         self.expression();

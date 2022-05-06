@@ -1,11 +1,11 @@
 use crate::chunk::*;
 use std::fmt::Display;
 
-use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Function {
     arity: usize,
-    chunk: RefCell<Chunk>,
+    pub chunk: Rc<Chunk>,
     name: String,
 }
 
@@ -16,8 +16,8 @@ impl PartialOrd for Function {
 }
 
 impl PartialEq for Function {
-    fn eq(&self, other: &Self) -> bool {
-        false
+    fn eq(&self, _other: &Self) -> bool {
+        todo!()
     }
 }
 
@@ -33,16 +33,24 @@ impl Clone for Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "<fn {}>", self.name)
+        if self.name.is_empty() {
+            write!(f, "<script>")
+        } else {
+            write!(f, "<fn {}>", self.name)
+        }
     }
 }
 
 impl Function {
-    pub fn new() -> Self {
+    pub fn new(chunk: &Rc<Chunk>) -> Self {
         Function {
             arity: 0,
-            chunk: RefCell::new(Chunk::new()),
+            chunk: Rc::clone(chunk),
             name: "".to_string(),
         }
+    }
+
+    pub fn get_chunk(&self) -> Rc<Chunk> {
+        Rc::clone(&self.chunk)
     }
 }

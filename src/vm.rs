@@ -21,12 +21,11 @@ impl VM {
     }
 
     pub fn interpret(&mut self, source: &str) -> Result<(), InterpretResult> {
-        let mut chunk = Chunk::new();
-        let mut compiler = Compiler::new(&mut chunk);
-        compiler.compile(source)?;
+        let mut compiler = Compiler::new();
+        let func = compiler.compile(source)?;
 
         self.ip = 0;
-        self.chunk = Rc::new(chunk);
+        self.chunk = func.get_chunk();
         self.run()
     }
 
