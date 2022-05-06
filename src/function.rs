@@ -3,6 +3,7 @@ use std::fmt::Display;
 
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub struct Function {
     arity: usize,
     pub chunk: Rc<Chunk>,

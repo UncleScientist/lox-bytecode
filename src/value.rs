@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::function::*;
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Debug)]
 pub enum Value {
     Boolean(bool),
     Number(f64),
@@ -96,7 +96,7 @@ impl Value {
         matches!(self, Value::Number(_))
     }
 
-    pub fn is_falsy(&self) -> bool {
+    pub fn is_falsey(&self) -> bool {
         matches!(self, Value::Nil | Value::Boolean(false))
     }
 
@@ -105,7 +105,7 @@ impl Value {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ValueArray {
     values: Vec<Value>,
 }
