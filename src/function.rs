@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Function {
     arity: usize,
     pub chunk: Rc<Chunk>,
@@ -43,8 +43,17 @@ impl Display for Function {
 }
 
 impl Function {
-    pub fn new(chunk: &Rc<Chunk>) -> Self {
-        Function {
+    pub fn new<T: ToString>(arity: usize, chunk: &Rc<Chunk>, name: T) -> Self {
+        println!("creating function with name {}", name.to_string());
+        Self {
+            arity,
+            chunk: Rc::clone(chunk),
+            name: name.to_string(),
+        }
+    }
+
+    pub fn toplevel(chunk: &Rc<Chunk>) -> Self {
+        Self {
             arity: 0,
             chunk: Rc::clone(chunk),
             name: "".to_string(),
