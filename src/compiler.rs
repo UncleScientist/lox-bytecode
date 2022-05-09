@@ -9,14 +9,95 @@ use crate::token::*;
 use crate::value::*;
 
 pub struct Compiler {
+    rules: Vec<ParseRule>,
     parser: Parser,
     scanner: Scanner,
-    chunk: RefCell<Chunk>,
+    result: RefCell<CompileResult>,
     #[cfg(feature = "debug_print_code")]
-    current_function: String,
-    rules: Vec<ParseRule>,
+    current_function: String, // <-
+}
+
+#[derive(Default)]
+struct CompileResult {
+    chunk: RefCell<Chunk>,
     locals: RefCell<Vec<Local>>,
-    scope_depth: usize,
+    scope_depth: RefCell<usize>,
+}
+
+enum FindResult {
+    Uninitialized,
+    NotFound,
+    Depth(u8),
+}
+
+impl CompileResult {
+    fn locals(&self) -> usize {
+        self.locals.borrow().len()
+    }
+
+    fn find_variable(&self, name: &str) -> FindResult {
+        for (e, v) in self.locals.borrow().iter().rev().enumerate() {
+            if v.name.lexeme == *name {
+                if v.depth.is_none() {
+                    return FindResult::Uninitialized;
+                }
+                return FindResult::Depth((self.locals.borrow().len() - e - 1) as u8);
+            }
+        }
+        FindResult::NotFound
+    }
+
+    fn in_scope(&self) -> bool {
+        *self.scope_depth.borrow() != 0
+    }
+
+    fn set_local_scope(&self) {
+        let last = self.locals.borrow().len() - 1;
+        let mut locals = self.locals.borrow_mut();
+        locals[last].depth = Some(*self.scope_depth.borrow());
+    }
+
+    fn is_scope_poppable(&self) -> bool {
+        self.locals.borrow().len() > 0
+            && self.locals.borrow().last().unwrap().depth.unwrap() > *self.scope_depth.borrow()
+    }
+
+    fn inc_scope(&self) {
+        *self.scope_depth.borrow_mut() += 1;
+    }
+
+    fn dec_scope(&self) {
+        *self.scope_depth.borrow_mut() -= 1;
+    }
+
+    fn pop(&self) {
+        self.locals.borrow_mut().pop();
+    }
+
+    fn push(&self, local: Local) {
+        self.locals.borrow_mut().push(local);
+    }
+
+    fn write(&self, byte: u8, line: usize) {
+        self.chunk.borrow_mut().write(byte, line);
+    }
+
+    fn count(&self) -> usize {
+        self.chunk.borrow().count()
+    }
+
+    fn add_constant(&self, value: Value) -> Option<u8> {
+        self.chunk.borrow_mut().add_constant(value)
+    }
+
+    fn write_at(&self, offset: usize, byte: u8) {
+        self.chunk.borrow_mut().write_at(offset, byte);
+    }
+
+    #[cfg(feature = "debug_print_code")]
+    fn disassemble<T: ToString>(&self, name: T) {
+        self.chunk.borrow().disassemble(name);
+    }
 }
 
 #[derive(Default)]
@@ -159,19 +240,17 @@ impl Compiler {
         rules[TokenType::Or as usize].precedence = Precedence::Or;
 
         Self {
+            rules,
             parser: Parser::default(),
             scanner: Scanner::new(&"".to_string()),
-            chunk: RefCell::new(Chunk::new()),
+            result: RefCell::new(CompileResult::default()),
             #[cfg(feature = "debug_print_code")]
             current_function: "<script>".to_string(),
-            rules,
-            locals: RefCell::new(Vec::new()),
-            scope_depth: 0,
         }
     }
 
     pub fn compile(&mut self, source: &str) -> Result<Function, InterpretResult> {
-        self.locals.borrow_mut().push(Local {
+        self.result.borrow().push(Local {
             name: Token::default(),
             depth: Some(0),
         });
@@ -188,7 +267,8 @@ impl Compiler {
         if *self.parser.had_error.borrow() {
             Err(InterpretResult::CompileError)
         } else {
-            let chunk = self.chunk.replace(Chunk::new());
+            let result = self.result.replace(CompileResult::default());
+            let chunk = result.chunk.replace(Chunk::new());
             Ok(Function::new(&Rc::new(chunk)))
         }
     }
@@ -230,9 +310,7 @@ impl Compiler {
     }
 
     fn emit_byte(&mut self, byte: u8) {
-        self.chunk
-            .borrow_mut()
-            .write(byte, self.parser.previous.line);
+        self.result.borrow().write(byte, self.parser.previous.line);
     }
 
     fn emit_bytes(&mut self, byte1: OpCode, byte2: u8) {
@@ -243,7 +321,7 @@ impl Compiler {
     fn emit_loop(&mut self, loop_start: usize) {
         self.emit_byte(OpCode::Loop.into());
 
-        let offset = self.chunk.borrow().count() + 2 - loop_start;
+        let offset = self.result.borrow().count() + 2 - loop_start;
         if offset > u16::MAX as usize {
             self.error("Loop body too large.");
         }
@@ -256,7 +334,7 @@ impl Compiler {
         self.emit_byte(instruction.into());
         self.emit_byte(0xff);
         self.emit_byte(0xff);
-        self.chunk.borrow().count() - 2
+        self.result.borrow().count() - 2
     }
 
     fn emit_return(&mut self) {
@@ -264,7 +342,7 @@ impl Compiler {
     }
 
     fn make_constant(&mut self, value: Value) -> u8 {
-        if let Some(constant) = self.chunk.borrow_mut().add_constant(value) {
+        if let Some(constant) = self.result.borrow().add_constant(value) {
             constant
         } else {
             self.error("Too many constants in one chunk.");
@@ -278,17 +356,17 @@ impl Compiler {
     }
 
     fn patch_jump(&mut self, offset: usize) {
-        let jump = self.chunk.borrow().count() - offset - 2;
+        let jump = self.result.borrow().count() - offset - 2;
 
         if jump > u16::MAX as usize {
             self.error("Too much code to jump over.");
         }
 
-        self.chunk
-            .borrow_mut()
+        self.result
+            .borrow()
             .write_at(offset, ((jump >> 8) & 0xff) as u8);
-        self.chunk
-            .borrow_mut()
+        self.result
+            .borrow()
             .write_at(offset + 1, (jump & 0xff) as u8);
     }
 
@@ -296,22 +374,20 @@ impl Compiler {
         self.emit_return();
         #[cfg(feature = "debug_print_code")]
         if !*self.parser.had_error.borrow() {
-            self.chunk.borrow().disassemble(&self.current_function);
+            self.result.borrow().disassemble(&self.current_function);
         }
     }
 
     fn begin_scope(&mut self) {
-        self.scope_depth += 1;
+        self.result.borrow().inc_scope();
     }
 
     fn end_scope(&mut self) {
-        self.scope_depth -= 1;
+        self.result.borrow().dec_scope();
 
-        while self.locals.borrow().len() > 0
-            && self.locals.borrow().last().unwrap().depth.unwrap() > self.scope_depth
-        {
+        while self.result.borrow().is_scope_poppable() {
             self.emit_byte(OpCode::Pop.into());
-            self.locals.borrow_mut().pop();
+            self.result.borrow().pop();
         }
     }
 
@@ -373,15 +449,14 @@ impl Compiler {
     }
 
     fn resolve_local(&self, name: &Token) -> Option<u8> {
-        for (e, v) in self.locals.borrow().iter().rev().enumerate() {
-            if v.name.lexeme == name.lexeme {
-                if v.depth.is_none() {
-                    self.error("Can't read local variable in its own initializer.");
-                }
-                return Some((self.locals.borrow().len() - e - 1) as u8);
+        match self.result.borrow().find_variable(&name.lexeme) {
+            FindResult::Uninitialized => {
+                self.error("Can't read local variable in its own initializer.");
+                None
             }
+            FindResult::NotFound => None,
+            FindResult::Depth(d) => Some(d),
         }
-        None
     }
 
     fn named_variable(&mut self, name: &Token, can_assign: bool) {
@@ -446,7 +521,7 @@ impl Compiler {
     }
 
     fn add_local(&self, name: &Token) {
-        if self.locals.borrow().len() >= 256 {
+        if self.result.borrow().locals() >= 256 {
             self.error("Too many local variables in function.");
             return;
         }
@@ -455,20 +530,13 @@ impl Compiler {
             name: name.clone(),
             depth: None,
         };
-        self.locals.borrow_mut().push(loc);
+        self.result.borrow().push(loc);
     }
 
     fn declare_variable(&mut self) {
-        if self.scope_depth != 0 {
-            let name = self.parser.previous.lexeme.clone();
-            if self
-                .locals
-                .borrow()
-                .iter()
-                .filter(|x| x.name.lexeme == name)
-                .count()
-                != 0
-            {
+        if self.result.borrow().in_scope() {
+            let name = &self.parser.previous.lexeme;
+            if let FindResult::Depth(_) = self.result.borrow().find_variable(name) {
                 self.error("Already a variable with this name in this scope.");
             } else {
                 self.add_local(&self.parser.previous);
@@ -481,7 +549,7 @@ impl Compiler {
 
         self.declare_variable();
 
-        if self.scope_depth == 0 {
+        if !self.result.borrow().in_scope() {
             let name = self.parser.previous.clone();
             self.identifier_constant(&name)
         } else {
@@ -490,13 +558,11 @@ impl Compiler {
     }
 
     fn mark_initialized(&mut self) {
-        let last = self.locals.borrow().len() - 1;
-        let mut locals = self.locals.borrow_mut();
-        locals[last].depth = Some(self.scope_depth);
+        self.result.borrow().set_local_scope();
     }
 
     fn define_variable(&mut self, global: u8) {
-        if self.scope_depth == 0 {
+        if !self.result.borrow().in_scope() {
             self.emit_bytes(OpCode::DefineGlobal, global);
         } else {
             self.mark_initialized();
@@ -556,7 +622,7 @@ impl Compiler {
             self.expression_statement(); // consumes semicolon
         }
 
-        let mut loop_start = self.chunk.borrow().count();
+        let mut loop_start = self.result.borrow().count();
 
         let exit_jump = if self.is_match(TokenType::SemiColon) {
             None
@@ -573,7 +639,7 @@ impl Compiler {
 
         if !self.is_match(TokenType::RightParen) {
             let body_jump = self.emit_jump(OpCode::Jump);
-            let increment_start = self.chunk.borrow().count();
+            let increment_start = self.result.borrow().count();
 
             self.expression();
             self.emit_byte(OpCode::Pop.into());
@@ -622,7 +688,7 @@ impl Compiler {
     }
 
     fn while_statement(&mut self) {
-        let loop_start = self.chunk.borrow().count();
+        let loop_start = self.result.borrow().count();
 
         self.consume(TokenType::LeftParen, "Expect '(' after 'while'.");
         self.expression();
