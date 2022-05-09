@@ -45,7 +45,10 @@ impl VM {
             ip: RefCell::new(0),
             slots: 0,
         });
-        self.run()
+        let result = self.run();
+        self.stack.pop();
+
+        result
     }
 
     fn ip(&self) -> usize {
