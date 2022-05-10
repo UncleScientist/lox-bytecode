@@ -202,7 +202,11 @@ impl Compiler {
             TokenType::NumberOfTokens as usize
         ];
 
-        rules[TokenType::LeftParen as usize].prefix = Some(Compiler::grouping);
+        rules[TokenType::LeftParen as usize] = ParseRule {
+            prefix: Some(Compiler::grouping),
+            infix: Some(Compiler::call),
+            precedence: Precedence::Call,
+        };
 
         rules[TokenType::Minus as usize] = ParseRule {
             prefix: Some(Compiler::unary),
@@ -352,6 +356,7 @@ impl Compiler {
     }
 
     fn emit_return(&mut self) {
+        self.emit_byte(OpCode::Nil.into());
         self.emit_byte(OpCode::Return.into());
     }
 
@@ -431,6 +436,11 @@ impl Compiler {
             TokenType::Slash => self.emit_byte(OpCode::Divide.into()),
             _ => todo!(),
         }
+    }
+
+    fn call(&mut self, _: bool) {
+        let arg_count = self.argument_list();
+        self.emit_bytes(OpCode::Call, arg_count);
     }
 
     fn literal(&mut self, _: bool) {
@@ -592,6 +602,25 @@ impl Compiler {
         }
     }
 
+    fn argument_list(&mut self) -> u8 {
+        let mut arg_count = 0;
+        if !self.check(TokenType::RightParen) {
+            loop {
+                self.expression();
+                if arg_count == 255 {
+                    self.error("Can't have more than 255 arguments.");
+                }
+                arg_count += 1;
+                if !self.is_match(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenType::RightParen, "Expect ')' after arguments.");
+        arg_count
+    }
+
     fn and(&mut self, _: bool) {
         let end_jump = self.emit_jump(OpCode::JumpIfFalse);
         self.emit_byte(OpCode::Pop.into());
@@ -637,17 +666,14 @@ impl Compiler {
         self.block();
 
         self.end_compiler();
+        let arity = self.result.borrow().arity();
         let result = self.result.replace(prev_compiler);
 
         if !*self.parser.had_error.borrow() {
             let chunk = result.chunk.replace(Chunk::new());
-            let func = Function::new(
-                self.result.borrow().arity(),
-                &Rc::new(chunk),
-                result.current_function.borrow(),
-            );
+            let func = Function::new(arity, &Rc::new(chunk), result.current_function.borrow());
 
-            let constant = self.make_constant(Value::Func(func));
+            let constant = self.make_constant(Value::Func(Rc::new(func)));
             self.emit_bytes(OpCode::Constant, constant);
         }
     }

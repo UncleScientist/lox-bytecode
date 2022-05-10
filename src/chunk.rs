@@ -25,6 +25,7 @@ pub enum OpCode {
     JumpIfFalse,
     Jump,
     Loop,
+    Call,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -132,6 +133,7 @@ impl Chunk {
             OpCode::JumpIfFalse => self.jump_instruction("OP_JUMP_IF_FALSE", Forwards, offset),
             OpCode::Jump => self.jump_instruction("OP_JUMP", Forwards, offset),
             OpCode::Loop => self.jump_instruction("OP_LOOP", Backwards, offset),
+            OpCode::Call => self.byte_instruction("OP_CALL", offset),
         }
     }
 
@@ -197,6 +199,7 @@ impl From<u8> for OpCode {
             21 => OpCode::JumpIfFalse,
             22 => OpCode::Jump,
             23 => OpCode::Loop,
+            24 => OpCode::Call,
             _ => unimplemented!("Invalid opcode"),
         }
     }

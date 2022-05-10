@@ -44,7 +44,6 @@ impl Display for Function {
 
 impl Function {
     pub fn new<T: ToString>(arity: usize, chunk: &Rc<Chunk>, name: T) -> Self {
-        println!("creating function with name {}", name.to_string());
         Self {
             arity,
             chunk: Rc::clone(chunk),
@@ -62,5 +61,17 @@ impl Function {
 
     pub fn get_chunk(&self) -> Rc<Chunk> {
         Rc::clone(&self.chunk)
+    }
+
+    pub fn arity(&self) -> usize {
+        self.arity
+    }
+
+    pub fn stack_name(&self) -> &str {
+        if self.name.is_empty() {
+            "script"
+        } else {
+            self.name.as_str()
+        }
     }
 }

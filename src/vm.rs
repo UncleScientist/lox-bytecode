@@ -10,8 +10,9 @@ pub struct VM {
     globals: HashMap<String, Value>,
 }
 
+#[derive(Debug)]
 struct CallFrame {
-    function: usize,
+    function: usize, // index into VM.stack
     ip: RefCell<usize>,
     slots: usize,
 }
@@ -39,12 +40,8 @@ impl VM {
         let mut compiler = Compiler::new();
         let function = compiler.compile(source)?;
 
-        self.stack.push(Value::Func(function));
-        self.frames.push(CallFrame {
-            function: 0,
-            ip: RefCell::new(0),
-            slots: 0,
-        });
+        self.stack.push(Value::Func(Rc::new(function)));
+        self.call(0);
         let result = self.run();
         self.stack.pop();
 
@@ -60,7 +57,7 @@ impl VM {
     }
 
     fn chunk(&self) -> Rc<Chunk> {
-        let position = self.frames.last().unwrap().function;
+        let position = self.current_frame().function;
         if let Value::Func(f) = &self.stack[position] {
             f.get_chunk()
         } else {
@@ -82,6 +79,12 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::Call => {
+                    let arg_count = self.read_byte() as usize;
+                    if !self.call_value(arg_count) {
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
                 OpCode::Loop => {
                     let offset = self.read_short();
                     self.current_frame().dec(offset);
@@ -134,18 +137,25 @@ impl VM {
                 OpCode::GetLocal => {
                     let slot = self.read_byte() as usize;
                     let slot_offset = self.current_frame().slots;
-                    self.stack.push(self.stack[slot_offset + slot].clone());
+                    self.stack.push(self.stack[slot_offset + slot + 1].clone());
                 }
                 OpCode::SetLocal => {
                     let slot = self.read_byte() as usize;
                     let slot_offset = self.current_frame().slots;
-                    self.stack[slot_offset + slot] = self.peek(0).clone();
+                    self.stack[slot_offset + slot + 1] = self.peek(0).clone();
                 }
                 OpCode::Print => {
                     println!("{}", self.pop());
                 }
                 OpCode::Return => {
-                    return Ok(());
+                    let result = self.pop();
+                    let prev_frame = self.frames.pop().unwrap();
+                    if self.frames.is_empty() {
+                        self.pop();
+                        return Ok(());
+                    }
+                    self.stack.truncate(prev_frame.slots);
+                    self.stack.push(result);
                 }
                 OpCode::Constant => {
                     let constant = self.read_constant().clone();
@@ -187,6 +197,47 @@ impl VM {
 
     fn peek(&self, distance: usize) -> &Value {
         &self.stack[self.stack.len() - distance - 1]
+    }
+
+    fn call(&mut self, arg_count: usize) -> bool {
+        let arity = if let Value::Func(callee) = self.peek(arg_count) {
+            callee.arity()
+        } else {
+            panic!("tried to call a non-function");
+        };
+        if arity != arg_count {
+            let _ = self.runtime_error(&format!("Expected {arity} arguments but got {arg_count}."));
+            return false;
+        }
+
+        if self.frames.len() == 256 {
+            let _ = self.runtime_error(&"Stack overflow.");
+            return false;
+        }
+
+        self.frames.push(CallFrame {
+            function: self.stack.len() - arg_count - 1,
+            ip: RefCell::new(0),
+            slots: self.stack.len() - arg_count - 1,
+        });
+
+        true
+    }
+
+    fn call_value(&mut self, arg_count: usize) -> bool {
+        let callee = self.peek(arg_count);
+        let success = match callee {
+            Value::Func(_) => {
+                return self.call(arg_count);
+            }
+            _ => false,
+        };
+
+        if !success {
+            let _ = self.runtime_error(&"Can only call functions and classes.");
+        }
+
+        success
     }
 
     fn reset_stack(&mut self) {
@@ -232,9 +283,16 @@ impl VM {
     }
 
     fn runtime_error<T: ToString>(&mut self, err_msg: &T) -> Result<(), InterpretResult> {
-        let line = self.chunk().get_line(self.ip() - 1);
         eprintln!("{}", err_msg.to_string());
-        eprintln!("[line {line}] in script");
+        for frame in self.frames.iter().rev() {
+            if let Value::Func(function) = &self.stack[frame.function] {
+                let instruction = *frame.ip.borrow() - 1;
+                let line = function.get_chunk().get_line(instruction);
+                eprintln!("[line {line}] in {}", function.stack_name());
+            } else {
+                panic!("tried to get a stack trace of a non-function");
+            }
+        }
         self.reset_stack();
 
         Err(InterpretResult::RuntimeError)
