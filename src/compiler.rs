@@ -387,10 +387,15 @@ impl Compiler {
     fn end_compiler(&mut self) {
         self.emit_return();
         #[cfg(feature = "debug_print_code")]
-        if !*self.parser.had_error.borrow() {
-            self.result
-                .borrow()
-                .disassemble(&self.result.borrow().current_function.borrow());
+        {
+            let name = if self.result.borrow().current_function.borrow().is_empty() {
+                "<script>".to_string()
+            } else {
+                self.result.borrow().current_function.borrow().clone()
+            };
+            if !*self.parser.had_error.borrow() {
+                self.result.borrow().disassemble(name)
+            }
         }
     }
 
