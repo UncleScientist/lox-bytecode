@@ -15,6 +15,18 @@ pub struct Compiler {
     result: RefCell<CompileResult>,
 }
 
+#[derive(PartialEq)]
+enum ChunkType {
+    Script,
+    Function,
+}
+
+impl Default for ChunkType {
+    fn default() -> Self {
+        ChunkType::Script
+    }
+}
+
 #[derive(Default)]
 struct CompileResult {
     chunk: RefCell<Chunk>,
@@ -22,6 +34,7 @@ struct CompileResult {
     scope_depth: RefCell<usize>,
     arity: RefCell<usize>,
     current_function: RefCell<String>,
+    ctype: ChunkType,
 }
 
 enum FindResult {
@@ -31,9 +44,10 @@ enum FindResult {
 }
 
 impl CompileResult {
-    fn new<T: Into<String>>(name: T) -> Self {
+    fn new<T: Into<String>>(name: T, ctype: ChunkType) -> Self {
         Self {
             current_function: RefCell::new(name.into()),
+            ctype,
             ..Default::default()
         }
     }
@@ -643,9 +657,10 @@ impl Compiler {
     }
 
     fn function(&mut self) {
-        let prev_compiler = self
-            .result
-            .replace(CompileResult::new(self.parser.previous.lexeme.clone()));
+        let prev_compiler = self.result.replace(CompileResult::new(
+            self.parser.previous.lexeme.clone(),
+            ChunkType::Function,
+        ));
 
         self.begin_scope();
         self.consume(TokenType::LeftParen, "Expect '(' after function name.");
@@ -786,6 +801,20 @@ impl Compiler {
         self.emit_byte(OpCode::Print);
     }
 
+    fn return_statement(&mut self) {
+        if self.result.borrow().ctype == ChunkType::Script {
+            self.error("Can't return from top-level code.");
+        }
+
+        if self.is_match(TokenType::SemiColon) {
+            self.emit_return();
+        } else {
+            self.expression();
+            self.consume(TokenType::SemiColon, "Expect ';' after return value.");
+            self.emit_byte(OpCode::Return);
+        }
+    }
+
     fn while_statement(&mut self) {
         let loop_start = self.result.borrow().count();
 
@@ -847,6 +876,8 @@ impl Compiler {
             self.for_statement();
         } else if self.is_match(TokenType::If) {
             self.if_statement();
+        } else if self.is_match(TokenType::Return) {
+            self.return_statement();
         } else if self.is_match(TokenType::While) {
             self.while_statement();
         } else if self.is_match(TokenType::LeftBrace) {
