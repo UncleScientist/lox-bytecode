@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{hash_map::Entry, HashMap};
 use std::rc::Rc;
 
-use crate::{chunk::*, compiler::*, error::*, value::*};
+use crate::{chunk::*, compiler::*, error::*, native::*, value::*};
 
 pub struct VM {
     stack: Vec<Value>,
@@ -29,11 +29,14 @@ impl CallFrame {
 
 impl VM {
     pub fn new() -> Self {
-        Self {
+        let mut vm = Self {
             stack: Vec::new(),
             frames: Vec::new(),
             globals: HashMap::new(),
-        }
+        };
+        let f: Rc<dyn NativeFunc> = Rc::new(NativeClock {});
+        vm.define_native("clock", &f);
+        vm
     }
 
     pub fn interpret(&mut self, source: &str) -> Result<(), InterpretResult> {
@@ -230,6 +233,13 @@ impl VM {
             Value::Func(_) => {
                 return self.call(arg_count);
             }
+            Value::Native(f) => {
+                let stack_top = self.stack.len();
+                let result = f.call(arg_count, &self.stack[stack_top - arg_count..stack_top]);
+                self.stack.truncate(stack_top - arg_count + 1);
+                self.stack.push(result);
+                true
+            }
             _ => false,
         };
 
@@ -296,5 +306,10 @@ impl VM {
         self.reset_stack();
 
         Err(InterpretResult::RuntimeError)
+    }
+
+    fn define_native<T: Into<String>>(&mut self, name: T, function: &Rc<dyn NativeFunc>) {
+        self.globals
+            .insert(name.into(), Value::Native(Rc::clone(function)));
     }
 }

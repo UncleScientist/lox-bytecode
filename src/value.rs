@@ -1,16 +1,54 @@
-use std::fmt::{Display, Formatter};
+use std::any::Any;
+use std::cmp::Ordering;
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::rc::Rc;
 
 use crate::function::*;
 
-#[derive(PartialEq, PartialOrd, Debug)]
+pub trait NativeFunc {
+    fn call(&self, arg_count: usize, args: &[Value]) -> Value;
+}
+
+#[derive(Debug)]
 pub enum Value {
     Boolean(bool),
     Number(f64),
     Nil,
     Str(String),
     Func(Rc<Function>),
+    Native(Rc<dyn NativeFunc>),
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Value::Boolean(a), Value::Boolean(b)) => a.partial_cmp(b),
+            (Value::Number(a), Value::Number(b)) => a.partial_cmp(b),
+            (Value::Str(a), Value::Str(b)) => a.partial_cmp(b),
+            _ => None,
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a.cmp(b) == Ordering::Equal,
+            (Value::Nil, Value::Nil) => true,
+            (Value::Func(a), Value::Func(b)) => Rc::ptr_eq(a, b),
+            (Value::Native(a), Value::Native(b)) => a.type_id() == b.type_id(),
+            _ => false,
+        }
+    }
+}
+
+impl Debug for dyn NativeFunc {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "<native fn>")
+    }
 }
 
 impl Clone for Value {
@@ -21,6 +59,7 @@ impl Clone for Value {
             Value::Nil => Value::Nil,
             Value::Str(s) => Value::Str(s.clone()),
             Value::Func(f) => Value::Func(Rc::clone(f)),
+            Value::Native(f) => Value::Native(Rc::clone(f)),
         }
     }
 }
@@ -33,6 +72,7 @@ impl Display for Value {
             Value::Nil => write!(f, "nil"),
             Value::Str(s) => write!(f, "{s}"),
             Value::Func(func) => write!(f, "{func}"),
+            Value::Native(_) => write!(f, "<native fn>"),
         }
     }
 }

@@ -4,6 +4,7 @@ use std::io::{self, stdout, BufRead, Write};
 mod chunk;
 mod compiler;
 mod function;
+mod native;
 mod scanner;
 mod token;
 mod value;
