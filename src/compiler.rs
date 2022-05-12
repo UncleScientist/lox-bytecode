@@ -31,9 +31,9 @@ enum FindResult {
 }
 
 impl CompileResult {
-    fn new<T: ToString>(name: T) -> Self {
+    fn new<T: Into<String>>(name: T) -> Self {
         Self {
-            current_function: RefCell::new(name.to_string()),
+            current_function: RefCell::new(name.into()),
             ..Default::default()
         }
     }
@@ -111,7 +111,7 @@ impl CompileResult {
     }
 
     #[cfg(feature = "debug_print_code")]
-    fn disassemble<T: ToString>(&self, name: T) {
+    fn disassemble<T: Into<String>>(&self, name: T) {
         self.chunk.borrow().disassemble(name);
     }
 }
@@ -671,7 +671,7 @@ impl Compiler {
 
         if !*self.parser.had_error.borrow() {
             let chunk = result.chunk.replace(Chunk::new());
-            let func = Function::new(arity, &Rc::new(chunk), result.current_function.borrow());
+            let func = Function::new(arity, &Rc::new(chunk), &*result.current_function.borrow());
 
             let constant = self.make_constant(Value::Func(Rc::new(func)));
             self.emit_bytes(OpCode::Constant, constant);
