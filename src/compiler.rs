@@ -12,7 +12,7 @@ pub struct Compiler {
     rules: Vec<ParseRule>,
     parser: Parser,
     scanner: Scanner,
-    result: RefCell<CompileResult>,
+    result: RefCell<Rc<CompileResult>>,
 }
 
 #[derive(PartialEq)]
@@ -27,6 +27,12 @@ impl Default for ChunkType {
     }
 }
 
+#[derive(PartialEq)]
+struct Upvalue {
+    is_local: bool,
+    index: u8,
+}
+
 #[derive(Default)]
 struct CompileResult {
     chunk: RefCell<Chunk>,
@@ -35,9 +41,12 @@ struct CompileResult {
     arity: RefCell<usize>,
     current_function: RefCell<String>,
     ctype: ChunkType,
+    enclosing: RefCell<Option<Rc<CompileResult>>>,
+    upvalues: RefCell<Vec<Upvalue>>,
 }
 
 enum FindResult {
+    TooManyVariables,
     Uninitialized,
     NotFound,
     Depth(u8),
@@ -81,6 +90,56 @@ impl CompileResult {
             }
         }
         FindResult::NotFound
+    }
+
+    fn resolve_local(&self, name: &Token) -> Result<Option<u8>, FindResult> {
+        let find_result = self.find_variable(&name.lexeme);
+        match find_result {
+            FindResult::Uninitialized | FindResult::TooManyVariables => Err(find_result),
+            FindResult::NotFound => Ok(None),
+            FindResult::Depth(d) => Ok(Some(d)),
+        }
+    }
+
+    fn resolve_upvalue(&self, name: &Token) -> Result<Option<u8>, FindResult> {
+        if self.enclosing.borrow().is_none() {
+            return Ok(None);
+        }
+
+        if let Some(depth) = self
+            .enclosing
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .resolve_local(name)?
+        {
+            return Ok(Some(self.add_upvalue(depth, true)?));
+        }
+
+        match self
+            .enclosing
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .resolve_upvalue(name)?
+        {
+            None => Ok(None),
+            Some(depth) => Ok(Some(self.add_upvalue(depth, false)?)),
+        }
+    }
+
+    fn add_upvalue(&self, index: u8, is_local: bool) -> Result<u8, FindResult> {
+        let upvalue = Upvalue { index, is_local };
+        if let Some(pos) = self.upvalues.borrow().iter().position(|x| x == &upvalue) {
+            return Ok(pos as u8);
+        }
+
+        let upvalue_count = self.upvalues.borrow().len() as u8;
+        if upvalue_count == 255 {
+            return Err(FindResult::TooManyVariables);
+        }
+        self.upvalues.borrow_mut().push(upvalue);
+        Ok(upvalue_count)
     }
 
     fn in_scope(&self) -> bool {
@@ -283,7 +342,7 @@ impl Compiler {
             rules,
             parser: Parser::default(),
             scanner: Scanner::new(&"".to_string()),
-            result: RefCell::new(CompileResult::default()),
+            result: RefCell::new(Rc::new(CompileResult::default())),
         }
     }
 
@@ -305,7 +364,7 @@ impl Compiler {
         if *self.parser.had_error.borrow() {
             Err(InterpretResult::CompileError)
         } else {
-            let result = self.result.replace(CompileResult::default());
+            let result = self.result.replace(Rc::new(CompileResult::default()));
             let chunk = result.chunk.replace(Chunk::new());
             Ok(Function::toplevel(&Rc::new(chunk)))
         }
@@ -502,19 +561,32 @@ impl Compiler {
     }
 
     fn resolve_local(&self, name: &Token) -> Option<u8> {
-        match self.result.borrow().find_variable(&name.lexeme) {
-            FindResult::Uninitialized => {
+        match self.result.borrow().resolve_local(name) {
+            Err(FindResult::Uninitialized) => {
                 self.error("Can't read local variable in its own initializer.");
                 None
             }
-            FindResult::NotFound => None,
-            FindResult::Depth(d) => Some(d),
+            Ok(val) => val,
+            _ => panic!("invalid return from resolve_local"),
+        }
+    }
+
+    fn resolve_upvalue(&self, name: &Token) -> Option<u8> {
+        match self.result.borrow().resolve_upvalue(name) {
+            Err(FindResult::TooManyVariables) => {
+                self.error("TODO - error messsage");
+                None
+            }
+            Ok(val) => val,
+            _ => panic!("invalid return from resolve_upvalue"),
         }
     }
 
     fn named_variable(&mut self, name: &Token, can_assign: bool) {
         let (arg, get_op, set_op) = if let Some(local_arg) = self.resolve_local(name) {
             (local_arg, OpCode::GetLocal, OpCode::SetLocal)
+        } else if let Some(upvalue_arg) = self.resolve_upvalue(name) {
+            (upvalue_arg, OpCode::GetUpvalue, OpCode::SetUpvalue)
         } else {
             (
                 self.identifier_constant(name),
@@ -663,10 +735,11 @@ impl Compiler {
     }
 
     fn function(&mut self) {
-        let prev_compiler = self.result.replace(CompileResult::new(
+        let prev_compiler = self.result.replace(Rc::new(CompileResult::new(
             self.parser.previous.lexeme.clone(),
             ChunkType::Function,
-        ));
+        )));
+        self.result.borrow().enclosing.replace(Some(prev_compiler));
 
         self.begin_scope();
         self.consume(TokenType::LeftParen, "Expect '(' after function name.");
@@ -690,14 +763,25 @@ impl Compiler {
 
         self.end_compiler();
         let arity = self.result.borrow().arity();
+        let prev_compiler = self.result.borrow().enclosing.replace(None).unwrap();
         let result = self.result.replace(prev_compiler);
 
         if !*self.parser.had_error.borrow() {
             let chunk = result.chunk.replace(Chunk::new());
-            let func = Function::new(arity, &Rc::new(chunk), &*result.current_function.borrow());
+            let func = Function::new(
+                arity,
+                &Rc::new(chunk),
+                &*result.current_function.borrow(),
+                result.upvalues.borrow().len(),
+            );
 
             let constant = self.make_constant(Value::Func(Rc::new(func)));
             self.emit_bytes(OpCode::Closure, constant);
+
+            for upvalue in result.upvalues.borrow().iter() {
+                self.emit_byte(if upvalue.is_local { 1 } else { 0 });
+                self.emit_byte(upvalue.index);
+            }
         }
     }
 

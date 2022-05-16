@@ -83,6 +83,7 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::GetUpvalue | OpCode::SetUpvalue => todo!(),
                 OpCode::Closure => {
                     let constant = self.read_constant().clone();
                     if let Value::Func(function) = constant {

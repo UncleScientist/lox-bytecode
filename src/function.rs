@@ -8,6 +8,7 @@ pub struct Function {
     arity: usize,
     pub chunk: Rc<Chunk>,
     name: String,
+    upvalue_count: usize,
 }
 
 impl PartialOrd for Function {
@@ -28,6 +29,7 @@ impl Clone for Function {
             arity: self.arity,
             chunk: self.chunk.clone(),
             name: self.name.clone(),
+            upvalue_count: self.upvalue_count,
         }
     }
 }
@@ -43,11 +45,17 @@ impl Display for Function {
 }
 
 impl Function {
-    pub fn new<T: Into<String>>(arity: usize, chunk: &Rc<Chunk>, name: T) -> Self {
+    pub fn new<T: Into<String>>(
+        arity: usize,
+        chunk: &Rc<Chunk>,
+        name: T,
+        upvalue_count: usize,
+    ) -> Self {
         Self {
             arity,
             chunk: Rc::clone(chunk),
             name: name.into(),
+            upvalue_count,
         }
     }
 
@@ -56,6 +64,7 @@ impl Function {
             arity: 0,
             chunk: Rc::clone(chunk),
             name: "".to_string(),
+            upvalue_count: 0,
         }
     }
 
@@ -73,5 +82,9 @@ impl Function {
         } else {
             self.name.as_str()
         }
+    }
+
+    pub fn upvalues(&self) -> usize {
+        self.upvalue_count
     }
 }
