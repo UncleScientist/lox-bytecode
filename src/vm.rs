@@ -140,12 +140,12 @@ impl VM {
                 OpCode::GetLocal => {
                     let slot = self.read_byte() as usize;
                     let slot_offset = self.current_frame().slots;
-                    self.stack.push(self.stack[slot_offset + slot + 1].clone());
+                    self.stack.push(self.stack[slot_offset + slot].clone());
                 }
                 OpCode::SetLocal => {
                     let slot = self.read_byte() as usize;
                     let slot_offset = self.current_frame().slots;
-                    self.stack[slot_offset + slot + 1] = self.peek(0).clone();
+                    self.stack[slot_offset + slot] = self.peek(0).clone();
                 }
                 OpCode::Print => {
                     println!("{}", self.pop());

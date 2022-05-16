@@ -45,7 +45,13 @@ enum FindResult {
 
 impl CompileResult {
     fn new<T: Into<String>>(name: T, ctype: ChunkType) -> Self {
+        let locals = RefCell::new(Vec::new());
+        locals.borrow_mut().push(Local {
+            name: Token::default(),
+            depth: Some(0),
+        });
         Self {
+            locals,
             current_function: RefCell::new(name.into()),
             ctype,
             ..Default::default()
