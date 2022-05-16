@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::rc::Rc;
 
+use crate::closure::*;
 use crate::function::*;
 
 pub trait NativeFunc {
@@ -18,6 +19,7 @@ pub enum Value {
     Str(String),
     Func(Rc<Function>),
     Native(Rc<dyn NativeFunc>),
+    Closure(Rc<Closure>),
 }
 
 impl PartialOrd for Value {
@@ -60,6 +62,7 @@ impl Clone for Value {
             Value::Str(s) => Value::Str(s.clone()),
             Value::Func(f) => Value::Func(Rc::clone(f)),
             Value::Native(f) => Value::Native(Rc::clone(f)),
+            Value::Closure(c) => Value::Closure(Rc::clone(c)),
         }
     }
 }
@@ -73,6 +76,7 @@ impl Display for Value {
             Value::Str(s) => write!(f, "{s}"),
             Value::Func(func) => write!(f, "{func}"),
             Value::Native(_) => write!(f, "<native fn>"),
+            Value::Closure(closure) => write!(f, "{closure}"),
         }
     }
 }

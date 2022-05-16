@@ -697,7 +697,7 @@ impl Compiler {
             let func = Function::new(arity, &Rc::new(chunk), &*result.current_function.borrow());
 
             let constant = self.make_constant(Value::Func(Rc::new(func)));
-            self.emit_bytes(OpCode::Constant, constant);
+            self.emit_bytes(OpCode::Closure, constant);
         }
     }
 

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{hash_map::Entry, HashMap};
 use std::rc::Rc;
 
-use crate::{chunk::*, compiler::*, error::*, native::*, value::*};
+use crate::{chunk::*, closure::*, compiler::*, error::*, native::*, value::*};
 
 pub struct VM {
     stack: Vec<Value>,
@@ -43,7 +43,8 @@ impl VM {
         let mut compiler = Compiler::new();
         let function = compiler.compile(source)?;
 
-        self.stack.push(Value::Func(Rc::new(function)));
+        self.stack
+            .push(Value::Closure(Rc::new(Closure::new(Rc::new(function)))));
         self.call(0);
         let result = self.run();
         self.stack.pop();
@@ -51,18 +52,18 @@ impl VM {
         result
     }
 
-    fn ip(&self) -> usize {
-        *self.frames.last().unwrap().ip.borrow()
-    }
-
     fn current_frame(&self) -> &CallFrame {
         self.frames.last().unwrap()
     }
 
+    fn ip(&self) -> usize {
+        *self.current_frame().ip.borrow()
+    }
+
     fn chunk(&self) -> Rc<Chunk> {
         let position = self.current_frame().function;
-        if let Value::Func(f) = &self.stack[position] {
-            f.get_chunk()
+        if let Value::Closure(c) = &self.stack[position] {
+            c.get_chunk()
         } else {
             panic!("no chunk");
         }
@@ -82,6 +83,15 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::Closure => {
+                    let constant = self.read_constant().clone();
+                    if let Value::Func(function) = constant {
+                        let closure = Closure::new(function);
+                        self.stack.push(Value::Closure(Rc::new(closure)));
+                    } else {
+                        panic!("Tried to read function from constant table but got {constant:?}");
+                    }
+                }
                 OpCode::Call => {
                     let arg_count = self.read_byte() as usize;
                     if !self.call_value(arg_count) {
@@ -203,10 +213,10 @@ impl VM {
     }
 
     fn call(&mut self, arg_count: usize) -> bool {
-        let arity = if let Value::Func(callee) = self.peek(arg_count) {
+        let arity = if let Value::Closure(callee) = self.peek(arg_count) {
             callee.arity()
         } else {
-            panic!("tried to call a non-function");
+            panic!("tried to call a non-function: {:?}", self.peek(arg_count));
         };
         if arity != arg_count {
             let _ = self.runtime_error(&format!("Expected {arity} arguments but got {arg_count}."));
@@ -230,7 +240,7 @@ impl VM {
     fn call_value(&mut self, arg_count: usize) -> bool {
         let callee = self.peek(arg_count);
         let success = match callee {
-            Value::Func(_) => {
+            Value::Closure(_) => {
                 return self.call(arg_count);
             }
             Value::Native(f) => {
@@ -295,10 +305,10 @@ impl VM {
     fn runtime_error<T: Into<String>>(&mut self, err_msg: T) -> Result<(), InterpretResult> {
         eprintln!("{}", err_msg.into());
         for frame in self.frames.iter().rev() {
-            if let Value::Func(function) = &self.stack[frame.function] {
+            if let Value::Closure(closure) = &self.stack[frame.function] {
                 let instruction = *frame.ip.borrow() - 1;
-                let line = function.get_chunk().get_line(instruction);
-                eprintln!("[line {line}] in {}", function.stack_name());
+                let line = closure.get_chunk().get_line(instruction);
+                eprintln!("[line {line}] in {}", closure.stack_name());
             } else {
                 panic!("tried to get a stack trace of a non-function");
             }

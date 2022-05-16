@@ -26,6 +26,7 @@ pub enum OpCode {
     Jump,
     Loop,
     Call,
+    Closure,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -134,6 +135,15 @@ impl Chunk {
             OpCode::Jump => self.jump_instruction("OP_JUMP", Forwards, offset),
             OpCode::Loop => self.jump_instruction("OP_LOOP", Backwards, offset),
             OpCode::Call => self.byte_instruction("OP_CALL", offset),
+            OpCode::Closure => {
+                let mut index = offset + 1;
+                let constant = self.code[index];
+                index += 1;
+                print!("{:-16} {constant:4}", "OP_CLOSURE");
+                self.constants.print_value(constant as usize);
+                println!();
+                return index;
+            }
         }
     }
 
@@ -200,6 +210,7 @@ impl From<u8> for OpCode {
             22 => OpCode::Jump,
             23 => OpCode::Loop,
             24 => OpCode::Call,
+            25 => OpCode::Closure,
             _ => unimplemented!("Invalid opcode"),
         }
     }
