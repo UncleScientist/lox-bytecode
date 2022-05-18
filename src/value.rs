@@ -8,7 +8,13 @@ use crate::closure::*;
 use crate::function::*;
 
 pub trait NativeFunc {
-    fn call(&self, arg_count: usize, args: &[Value]) -> Value;
+    fn call(&self, arg_count: usize, args: &[Rc<Value>]) -> Value;
+}
+
+impl Debug for dyn NativeFunc {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "<native fn>")
+    }
 }
 
 #[derive(Debug)]
@@ -47,12 +53,6 @@ impl PartialEq for Value {
     }
 }
 
-impl Debug for dyn NativeFunc {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "<native fn>")
-    }
-}
-
 impl Clone for Value {
     fn clone(&self) -> Self {
         match self {
@@ -61,7 +61,7 @@ impl Clone for Value {
             Value::Nil => Value::Nil,
             Value::Str(s) => Value::Str(s.clone()),
             Value::Func(f) => Value::Func(Rc::clone(f)),
-            Value::Native(f) => Value::Native(Rc::clone(f)),
+            Value::Native(n) => Value::Native(Rc::clone(n)),
             Value::Closure(c) => Value::Closure(Rc::clone(c)),
         }
     }
@@ -81,56 +81,56 @@ impl Display for Value {
     }
 }
 
-impl Add for Value {
+impl Add for &Value {
     type Output = Value;
 
-    fn add(self, other: Value) -> Value {
+    fn add(self, other: &Value) -> Value {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a + b),
+            (&Value::Number(a), &Value::Number(b)) => Value::Number(a + b),
             _ => panic!("Invalid operation"),
         }
     }
 }
 
-impl Sub for Value {
+impl Sub for &Value {
     type Output = Value;
 
-    fn sub(self, other: Value) -> Value {
+    fn sub(self, other: &Value) -> Value {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a - b),
+            (&Value::Number(a), &Value::Number(b)) => Value::Number(a - b),
             _ => panic!("Invalid operation"),
         }
     }
 }
 
-impl Mul for Value {
+impl Mul for &Value {
     type Output = Value;
 
-    fn mul(self, other: Value) -> Value {
+    fn mul(self, other: &Value) -> Value {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a * b),
+            (&Value::Number(a), &Value::Number(b)) => Value::Number(a * b),
             _ => panic!("Invalid operation"),
         }
     }
 }
 
-impl Div for Value {
+impl Div for &Value {
     type Output = Value;
 
-    fn div(self, other: Value) -> Value {
+    fn div(self, other: &Value) -> Value {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(a / b),
+            (&Value::Number(a), &Value::Number(b)) => Value::Number(a / b),
             _ => panic!("Invalid operation"),
         }
     }
 }
 
-impl Neg for Value {
+impl Neg for &Value {
     type Output = Value;
 
     fn neg(self) -> Value {
         match self {
-            Value::Number(a) => Value::Number(-a),
+            &Value::Number(a) => Value::Number(-a),
             _ => panic!("Invalid operation"),
         }
     }
@@ -161,18 +161,6 @@ impl ValueArray {
     }
 
     pub fn write(&mut self, value: Value) -> usize {
-        /*
-         * String interning?
-        if let Value::Str(s) = value.clone() {
-            for (i, v) in self.values.iter().enumerate() {
-                if let Value::Str(t) = v {
-                    if t == &s {
-                        return i;
-                    }
-                }
-            }
-        }
-        */
         let count = self.values.len();
         self.values.push(value);
         count

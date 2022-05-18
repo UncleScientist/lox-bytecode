@@ -1,13 +1,16 @@
+use std::cell::RefCell;
 use std::fmt::Display;
 use std::rc::Rc;
 
 use crate::chunk::*;
 use crate::function::*;
+use crate::upvalues::*;
+use crate::value::*;
 
 #[derive(Debug)]
 pub struct Closure {
     function: Rc<Function>,
-    // <- captured variables go here
+    upvalues: RefCell<Vec<Rc<Upvalue>>>,
 }
 
 impl Display for Closure {
@@ -20,6 +23,7 @@ impl Closure {
     pub fn new(function: Rc<Function>) -> Self {
         Self {
             function: Rc::clone(&function),
+            upvalues: RefCell::new(Vec::new()),
         }
     }
 
@@ -33,5 +37,19 @@ impl Closure {
 
     pub fn stack_name(&self) -> &str {
         self.function.stack_name()
+    }
+
+    pub fn push_upvalue(&self, value: &Rc<Value>) {
+        self.upvalues
+            .borrow_mut()
+            .push(Rc::new(Upvalue::new(value)));
+    }
+
+    pub fn get_upvalue(&self, offset: usize) -> Rc<Value> {
+        self.upvalues.borrow()[offset].value()
+    }
+
+    pub fn modify(&self, offset: usize, value: &Rc<Value>) {
+        self.upvalues.borrow_mut()[offset] = Rc::new(Upvalue::new(value));
     }
 }

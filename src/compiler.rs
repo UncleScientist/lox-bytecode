@@ -28,7 +28,7 @@ impl Default for ChunkType {
 }
 
 #[derive(PartialEq)]
-struct Upvalue {
+struct UpvalueData {
     is_local: bool,
     index: u8,
 }
@@ -42,7 +42,7 @@ struct CompileResult {
     current_function: RefCell<String>,
     ctype: ChunkType,
     enclosing: RefCell<Option<Rc<CompileResult>>>,
-    upvalues: RefCell<Vec<Upvalue>>,
+    upvalues: RefCell<Vec<UpvalueData>>,
 }
 
 enum FindResult {
@@ -129,7 +129,7 @@ impl CompileResult {
     }
 
     fn add_upvalue(&self, index: u8, is_local: bool) -> Result<u8, FindResult> {
-        let upvalue = Upvalue { index, is_local };
+        let upvalue = UpvalueData { index, is_local };
         if let Some(pos) = self.upvalues.borrow().iter().position(|x| x == &upvalue) {
             return Ok(pos as u8);
         }
@@ -257,16 +257,6 @@ impl Precedence {
         let p = self as usize;
         (p + 1).into()
     }
-
-    /*
-    fn previous(self) -> Self {
-        if self == Precedence::None {
-            panic!("no previous before None");
-        }
-        let p = self as usize;
-        (p - 1).into()
-    }
-    */
 }
 
 impl Compiler {

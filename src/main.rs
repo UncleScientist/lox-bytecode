@@ -8,6 +8,7 @@ mod function;
 mod native;
 mod scanner;
 mod token;
+mod upvalues;
 mod value;
 
 mod error;
