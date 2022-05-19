@@ -29,6 +29,7 @@ pub enum OpCode {
     Closure,
     GetUpvalue,
     SetUpvalue,
+    CloseUpvalue,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -163,6 +164,7 @@ impl Chunk {
             }
             OpCode::GetUpvalue => self.byte_instruction("OP_GET_UPVALUE", offset),
             OpCode::SetUpvalue => self.byte_instruction("OP_SET_UPVALUE", offset),
+            OpCode::CloseUpvalue => self.simple_instruction("OP_CLOSE_UPVALUE", offset),
         }
     }
 
@@ -232,6 +234,7 @@ impl From<u8> for OpCode {
             25 => OpCode::Closure,
             26 => OpCode::GetUpvalue,
             27 => OpCode::SetUpvalue,
+            28 => OpCode::CloseUpvalue,
             _ => unimplemented!("Invalid opcode"),
         }
     }

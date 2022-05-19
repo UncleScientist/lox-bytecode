@@ -190,7 +190,7 @@ impl VM {
                         }
                     }
                 }
-                OpCode::Pop => {
+                OpCode::CloseUpvalue | OpCode::Pop => {
                     self.pop();
                 }
                 OpCode::GetLocal => {

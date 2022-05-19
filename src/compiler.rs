@@ -58,6 +58,7 @@ impl CompileResult {
         locals.borrow_mut().push(Local {
             name: Token::default(),
             depth: Some(0),
+            is_captured: false,
         });
         Self {
             locals,
@@ -92,6 +93,13 @@ impl CompileResult {
         FindResult::NotFound
     }
 
+    fn capture(&self, index: usize) {
+        let mut new_local = self.locals.borrow()[index].clone();
+        new_local.is_captured = true;
+        self.locals.borrow_mut()[index] = new_local;
+        println!("capturing index {index}");
+    }
+
     fn resolve_local(&self, name: &Token) -> Result<Option<u8>, FindResult> {
         let find_result = self.find_variable(&name.lexeme);
         match find_result {
@@ -113,6 +121,11 @@ impl CompileResult {
             .unwrap()
             .resolve_local(name)?
         {
+            self.enclosing
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .capture(depth as usize);
             return Ok(Some(self.add_upvalue(depth, true)?));
         }
 
@@ -155,6 +168,10 @@ impl CompileResult {
     fn is_scope_poppable(&self) -> bool {
         self.locals.borrow().len() > 0
             && self.locals.borrow().last().unwrap().depth.unwrap() > *self.scope_depth.borrow()
+    }
+
+    fn is_captured(&self) -> bool {
+        self.locals.borrow().last().unwrap().is_captured
     }
 
     fn inc_scope(&self) {
@@ -225,9 +242,11 @@ enum Precedence {
     Primary,
 }
 
+#[derive(Clone)]
 struct Local {
     name: Token,
     depth: Option<usize>,
+    is_captured: bool,
 }
 
 impl From<usize> for Precedence {
@@ -340,6 +359,7 @@ impl Compiler {
         self.result.borrow().push(Local {
             name: Token::default(),
             depth: Some(0),
+            is_captured: false,
         });
 
         self.scanner = Scanner::new(source);
@@ -483,7 +503,11 @@ impl Compiler {
         self.result.borrow().dec_scope();
 
         while self.result.borrow().is_scope_poppable() {
-            self.emit_byte(OpCode::Pop);
+            if self.result.borrow().is_captured() {
+                self.emit_byte(OpCode::CloseUpvalue);
+            } else {
+                self.emit_byte(OpCode::Pop);
+            }
             self.result.borrow().pop();
         }
     }
@@ -644,6 +668,7 @@ impl Compiler {
         let loc = Local {
             name: name.clone(),
             depth: None,
+            is_captured: false,
         };
         self.result.borrow().push(loc);
     }
