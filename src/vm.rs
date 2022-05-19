@@ -338,8 +338,8 @@ impl VM {
         if self.peek(0).borrow().is_string() && self.peek(1).borrow().is_string() {
             self.concatenate()
         } else if self.peek(0).borrow().is_number() && self.peek(1).borrow().is_number() {
-            let b = self.pop().clone();
-            let a = self.pop().clone();
+            let b = self.pop();
+            let a = self.pop();
             self.push(op(&a.borrow(), &b.borrow()));
             Ok(())
         } else {
@@ -349,8 +349,8 @@ impl VM {
     }
 
     fn concatenate(&mut self) -> Result<(), InterpretResult> {
-        let b = self.pop().clone();
-        let a = self.pop().clone();
+        let b = self.pop();
+        let a = self.pop();
         self.push(Value::Str(format!("{}{}", a.borrow(), b.borrow())));
         Ok(())
     }
