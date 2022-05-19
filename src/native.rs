@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
 
@@ -6,7 +7,7 @@ use crate::value::*;
 pub struct NativeClock {}
 
 impl NativeFunc for NativeClock {
-    fn call(&self, _arg_count: usize, _args: &[Rc<Value>]) -> Value {
+    fn call(&self, _arg_count: usize, _args: &[Rc<RefCell<Value>>]) -> Value {
         match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
             Ok(n) => Value::Number(n.as_millis() as f64),
             Err(_) => panic!("can't get system time"),

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::{chunk::*, closure::*, compiler::*, error::*, native::*, value::*};
 
 pub struct VM {
-    stack: Vec<Rc<Value>>,
+    stack: Vec<Rc<RefCell<Value>>>,
     frames: Vec<CallFrame>,
     globals: HashMap<String, Value>,
 }
@@ -44,10 +44,9 @@ impl VM {
         let mut compiler = Compiler::new();
         let function = compiler.compile(source)?;
 
-        self.stack
-            .push(Rc::new(Value::Closure(Rc::new(Closure::new(Rc::new(
-                function,
-            ))))));
+        self.stack.push(Rc::new(RefCell::new(Value::Closure(Rc::new(
+            Closure::new(Rc::new(function)),
+        )))));
         self.call(0);
         let result = self.run();
         self.stack.pop();
@@ -63,31 +62,31 @@ impl VM {
         *self.current_frame().ip.borrow()
     }
 
-    fn get_upvalue(&self, offset: usize) -> Rc<Value> {
+    fn get_upvalue(&self, offset: usize) -> Rc<RefCell<Value>> {
         let position = self.current_frame().closure;
-        if let Value::Closure(c) = self.stack[position].deref() {
+        if let Value::Closure(c) = self.stack[position].borrow().deref() {
             c.get_upvalue(offset)
         } else {
             panic!("no upvalue");
         }
     }
 
-    fn set_upvalue(&self, offset: usize, value: &Rc<Value>) {
+    fn set_upvalue(&self, offset: usize, value: &Rc<RefCell<Value>>) {
         let position = self.current_frame().closure;
-        if let Value::Closure(c) = self.stack[position].deref() {
+        if let Value::Closure(c) = self.stack[position].borrow().deref() {
             c.modify(offset, value)
         } else {
             panic!("no upvalue");
         }
     }
 
-    fn capture_upvalue(&self, offset: usize) -> Rc<Value> {
+    fn capture_upvalue(&self, offset: usize) -> Rc<RefCell<Value>> {
         Rc::clone(&self.stack[offset])
     }
 
     fn chunk(&self) -> Rc<Chunk> {
         let position = self.current_frame().closure;
-        if let Value::Closure(c) = self.stack[position].deref() {
+        if let Value::Closure(c) = self.stack[position].borrow().deref() {
             c.get_chunk()
         } else {
             panic!("no chunk");
@@ -100,7 +99,7 @@ impl VM {
             {
                 print!("          ");
                 for slot in &self.stack {
-                    print!("[ {slot} ]");
+                    print!("[ {} ]", slot.borrow());
                 }
                 println!();
                 self.chunk().disassemble_instruction(self.ip());
@@ -154,7 +153,7 @@ impl VM {
                 }
                 OpCode::JumpIfFalse => {
                     let offset = self.read_short();
-                    if self.peek(0).is_falsey() {
+                    if self.peek(0).borrow().is_falsey() {
                         self.current_frame().inc(offset);
                     }
                 }
@@ -162,7 +161,7 @@ impl VM {
                     let constant = self.read_constant().clone();
                     if let Value::Str(s) = constant {
                         let p = self.pop();
-                        self.globals.insert(s, p.deref().clone());
+                        self.globals.insert(s, p.borrow().clone());
                     } else {
                         panic!("Unable to read constant from table");
                     }
@@ -183,10 +182,9 @@ impl VM {
                 OpCode::SetGlobal => {
                     let constant = self.read_constant().clone();
                     if let Value::Str(s) = constant {
-                        let p = self.peek(0);
-                        let q = p.deref().clone();
+                        let p = self.peek(0).borrow().clone();
                         if let Entry::Occupied(mut o) = self.globals.entry(s.clone()) {
-                            *o.get_mut() = q;
+                            *o.get_mut() = p;
                         } else {
                             return self.runtime_error(&format!("Undefined variable '{s}'."));
                         }
@@ -206,7 +204,7 @@ impl VM {
                     self.stack[slot_offset + slot] = self.peek(0).clone();
                 }
                 OpCode::Print => {
-                    println!("{}", self.pop());
+                    println!("{}", self.pop().borrow());
                 }
                 OpCode::Return => {
                     let result = self.pop();
@@ -237,38 +235,41 @@ impl VM {
                 OpCode::Multiply => self.binary_op(|a, b| a * b)?,
                 OpCode::Divide => self.binary_op(|a, b| a / b)?,
                 OpCode::Not => {
-                    let value = self.pop();
+                    let value = self.pop().borrow().clone();
                     self.push(Value::Boolean(value.is_falsey()))
                 }
                 OpCode::Negate => {
-                    if !self.peek(0).is_number() {
+                    if !self.peek(0).borrow().is_number() {
                         return self.runtime_error("Operand must be a number.");
                     }
 
-                    let value = self.pop().clone();
-                    self.push(-(value.deref()));
+                    let value = self.pop().borrow().clone();
+                    self.push(-&value);
                 }
             }
         }
     }
 
     fn push(&mut self, value: Value) {
-        self.stack.push(Rc::new(value));
+        self.stack.push(Rc::new(RefCell::new(value)));
     }
 
-    fn pop(&mut self) -> Rc<Value> {
+    fn pop(&mut self) -> Rc<RefCell<Value>> {
         self.stack.pop().unwrap()
     }
 
-    fn peek(&self, distance: usize) -> &Rc<Value> {
+    fn peek(&self, distance: usize) -> &Rc<RefCell<Value>> {
         &self.stack[self.stack.len() - distance - 1]
     }
 
     fn call(&mut self, arg_count: usize) -> bool {
-        let arity = if let Value::Closure(callee) = self.peek(arg_count).deref() {
+        let arity = if let Value::Closure(callee) = self.peek(arg_count).borrow().deref() {
             callee.arity()
         } else {
-            panic!("tried to call a non-function: {:?}", self.peek(arg_count));
+            panic!(
+                "tried to call a non-function: {:?}",
+                self.peek(arg_count).borrow()
+            );
         };
         if arity != arg_count {
             let _ = self.runtime_error(&format!("Expected {arity} arguments but got {arg_count}."));
@@ -290,7 +291,7 @@ impl VM {
     }
 
     fn call_value(&mut self, arg_count: usize) -> bool {
-        let callee = self.peek(arg_count).deref();
+        let callee = self.peek(arg_count).borrow().clone();
         let success = match callee {
             Value::Closure(_) => {
                 return self.call(arg_count);
@@ -334,13 +335,12 @@ impl VM {
     }
 
     fn binary_op(&mut self, op: fn(a: &Value, b: &Value) -> Value) -> Result<(), InterpretResult> {
-        if self.peek(0).is_string() && self.peek(1).is_string() {
+        if self.peek(0).borrow().is_string() && self.peek(1).borrow().is_string() {
             self.concatenate()
-        } else if self.peek(0).is_number() && self.peek(1).is_number() {
-            let b = self.pop();
-            let a = self.pop();
-            // self.push(op(a.deref().clone(), b.deref().clone()));
-            self.push(op(a.deref(), b.deref()));
+        } else if self.peek(0).borrow().is_number() && self.peek(1).borrow().is_number() {
+            let b = self.pop().clone();
+            let a = self.pop().clone();
+            self.push(op(&a.borrow(), &b.borrow()));
             Ok(())
         } else {
             println!("{:?} and {:?}", self.peek(0), self.peek(1));
@@ -349,16 +349,16 @@ impl VM {
     }
 
     fn concatenate(&mut self) -> Result<(), InterpretResult> {
-        let b = self.pop();
-        let a = self.pop();
-        self.push(Value::Str(format!("{a}{b}")));
+        let b = self.pop().clone();
+        let a = self.pop().clone();
+        self.push(Value::Str(format!("{}{}", a.borrow(), b.borrow())));
         Ok(())
     }
 
     fn runtime_error<T: Into<String>>(&mut self, err_msg: T) -> Result<(), InterpretResult> {
         eprintln!("{}", err_msg.into());
         for frame in self.frames.iter().rev() {
-            if let Value::Closure(closure) = self.stack[frame.closure].deref() {
+            if let Value::Closure(closure) = self.stack[frame.closure].borrow().deref() {
                 let instruction = *frame.ip.borrow() - 1;
                 let line = closure.get_chunk().get_line(instruction);
                 eprintln!("[line {line}] in {}", closure.stack_name());

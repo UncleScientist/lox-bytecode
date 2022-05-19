@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
@@ -8,7 +9,7 @@ use crate::closure::*;
 use crate::function::*;
 
 pub trait NativeFunc {
-    fn call(&self, arg_count: usize, args: &[Rc<Value>]) -> Value;
+    fn call(&self, arg_count: usize, args: &[Rc<RefCell<Value>>]) -> Value;
 }
 
 impl Debug for dyn NativeFunc {
