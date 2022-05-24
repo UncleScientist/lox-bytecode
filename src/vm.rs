@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::{chunk::*, closure::*, compiler::*, error::*, native::*, value::*};
+use crate::{chunk::*, class::*, closure::*, compiler::*, error::*, native::*, value::*};
 
 pub struct VM {
     stack: Vec<Rc<RefCell<Value>>>,
@@ -107,6 +107,15 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::Class => {
+                    let constant = self.read_constant().clone();
+                    let class_string = if let Value::Str(s) = constant {
+                        s
+                    } else {
+                        panic!("Unable to get class name from table");
+                    };
+                    self.push(Value::Class(Rc::new(Class::new(class_string))));
+                }
                 OpCode::GetUpvalue => {
                     let slot = self.read_byte() as usize;
                     self.stack.push(Rc::clone(&self.get_upvalue(slot)));
