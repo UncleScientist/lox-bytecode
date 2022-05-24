@@ -2,6 +2,7 @@ use std::env::args;
 use std::io::{self, stdout, BufRead, Write};
 
 mod chunk;
+mod class;
 mod closure;
 mod compiler;
 mod function;
