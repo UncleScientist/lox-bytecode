@@ -8,6 +8,7 @@ use std::rc::Rc;
 use crate::class::*;
 use crate::closure::*;
 use crate::function::*;
+use crate::instance::*;
 
 pub trait NativeFunc {
     fn call(&self, arg_count: usize, args: &[Rc<RefCell<Value>>]) -> Value;
@@ -29,6 +30,7 @@ pub enum Value {
     Native(Rc<dyn NativeFunc>),
     Closure(Rc<Closure>),
     Class(Rc<Class>),
+    Instance(Rc<Instance>),
 }
 
 impl PartialOrd for Value {
@@ -45,12 +47,14 @@ impl PartialOrd for Value {
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Value::Boolean(a), Value::Boolean(b)) => a == b,
-            (Value::Number(a), Value::Number(b)) => a == b,
-            (Value::Str(a), Value::Str(b)) => a.cmp(b) == Ordering::Equal,
             (Value::Nil, Value::Nil) => true,
+            (Value::Str(a), Value::Str(b)) => a.cmp(b) == Ordering::Equal,
             (Value::Func(a), Value::Func(b)) => Rc::ptr_eq(a, b),
+            (Value::Class(a), Value::Class(b)) => Rc::ptr_eq(a, b),
             (Value::Native(a), Value::Native(b)) => a.type_id() == b.type_id(),
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Instance(a), Value::Instance(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -67,6 +71,7 @@ impl Clone for Value {
             Value::Native(n) => Value::Native(Rc::clone(n)),
             Value::Closure(c) => Value::Closure(Rc::clone(c)),
             Value::Class(c) => Value::Class(Rc::clone(c)),
+            Value::Instance(c) => Value::Instance(Rc::clone(c)),
         }
     }
 }
@@ -82,6 +87,7 @@ impl Display for Value {
             Value::Native(_) => write!(f, "<native fn>"),
             Value::Closure(closure) => write!(f, "{closure}"),
             Value::Class(klass) => write!(f, "{klass}"),
+            Value::Instance(instance) => write!(f, "{instance}"),
         }
     }
 }

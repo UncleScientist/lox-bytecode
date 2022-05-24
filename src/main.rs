@@ -6,6 +6,7 @@ mod class;
 mod closure;
 mod compiler;
 mod function;
+mod instance;
 mod native;
 mod scanner;
 mod token;

@@ -3,7 +3,9 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::{chunk::*, class::*, closure::*, compiler::*, error::*, native::*, value::*};
+use crate::{
+    chunk::*, class::*, closure::*, compiler::*, error::*, instance::*, native::*, value::*,
+};
 
 pub struct VM {
     stack: Vec<Rc<RefCell<Value>>>,
@@ -302,6 +304,13 @@ impl VM {
     fn call_value(&mut self, arg_count: usize) -> bool {
         let callee = self.peek(arg_count).borrow().clone();
         let success = match callee {
+            Value::Class(klass) => {
+                let stack_top = self.stack.len();
+                self.stack[stack_top - arg_count - 1] =
+                    Rc::new(RefCell::new(Value::Instance(Rc::new(Instance::new(klass)))));
+                true
+            }
+
             Value::Closure(_) => {
                 return self.call(arg_count);
             }
