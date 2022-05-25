@@ -347,6 +347,12 @@ impl Compiler {
         rules[TokenType::Or as usize].infix = Some(Compiler::or);
         rules[TokenType::Or as usize].precedence = Precedence::Or;
 
+        rules[TokenType::Dot as usize] = ParseRule {
+            prefix: None,
+            infix: Some(Compiler::dot),
+            precedence: Precedence::Call,
+        };
+
         Self {
             rules,
             parser: Parser::default(),
@@ -536,6 +542,19 @@ impl Compiler {
     fn call(&mut self, _: bool) {
         let arg_count = self.argument_list();
         self.emit_bytes(OpCode::Call, arg_count);
+    }
+
+    fn dot(&mut self, can_assign: bool) {
+        self.consume(TokenType::Identifier, "Expect property name after '.'.");
+        let name = self.parser.previous.clone();
+        let name = self.identifier_constant(&name);
+
+        if can_assign && self.is_match(TokenType::Assign) {
+            self.expression();
+            self.emit_bytes(OpCode::SetProperty, name);
+        } else {
+            self.emit_bytes(OpCode::GetProperty, name);
+        }
     }
 
     fn literal(&mut self, _: bool) {

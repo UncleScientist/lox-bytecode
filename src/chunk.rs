@@ -31,6 +31,8 @@ pub enum OpCode {
     SetUpvalue,
     CloseUpvalue,
     Class,
+    GetProperty,
+    SetProperty,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -167,6 +169,8 @@ impl Chunk {
             OpCode::SetUpvalue => self.byte_instruction("OP_SET_UPVALUE", offset),
             OpCode::CloseUpvalue => self.simple_instruction("OP_CLOSE_UPVALUE", offset),
             OpCode::Class => self.constant_instruction("OP_CLASS", offset),
+            OpCode::GetProperty => self.constant_instruction("OP_GET_PROPERTY", offset),
+            OpCode::SetProperty => self.constant_instruction("OP_SET_PROPERTY", offset),
         }
     }
 
@@ -238,6 +242,8 @@ impl From<u8> for OpCode {
             27 => OpCode::SetUpvalue,
             28 => OpCode::CloseUpvalue,
             29 => OpCode::Class,
+            30 => OpCode::GetProperty,
+            31 => OpCode::SetProperty,
             _ => unimplemented!("Invalid opcode"),
         }
     }
