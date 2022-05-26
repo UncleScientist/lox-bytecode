@@ -1,6 +1,7 @@
 use std::env::args;
 use std::io::{self, stdout, BufRead, Write};
 
+mod bound_method;
 mod chunk;
 mod class;
 mod closure;

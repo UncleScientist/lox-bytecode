@@ -33,4 +33,8 @@ impl Instance {
     pub fn set_field<T: Into<String>>(&self, name: T, value: &Value) {
         self.fields.borrow_mut().insert(name.into(), value.clone());
     }
+
+    pub fn get_class(&self) -> Rc<Class> {
+        Rc::clone(&self.klass)
+    }
 }

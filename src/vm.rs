@@ -4,7 +4,8 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 use crate::{
-    chunk::*, class::*, closure::*, compiler::*, error::*, instance::*, native::*, value::*,
+    bound_method::*, chunk::*, class::*, closure::*, compiler::*, error::*, instance::*, native::*,
+    value::*,
 };
 
 pub struct VM {
@@ -46,10 +47,10 @@ impl VM {
         let mut compiler = Compiler::new();
         let function = compiler.compile(source)?;
 
-        self.stack.push(Rc::new(RefCell::new(Value::Closure(Rc::new(
-            Closure::new(Rc::new(function)),
-        )))));
-        self.call(0);
+        let closure = Rc::new(Closure::new(Rc::new(function)));
+        self.stack
+            .push(Rc::new(RefCell::new(Value::Closure(Rc::clone(&closure)))));
+        self.call(closure, 0);
         let result = self.run();
         self.stack.pop();
 
@@ -88,10 +89,10 @@ impl VM {
 
     fn chunk(&self) -> Rc<Chunk> {
         let position = self.current_frame().closure;
-        if let Value::Closure(c) = self.stack[position].borrow().deref() {
-            c.get_chunk()
-        } else {
-            panic!("no chunk");
+        match self.stack[position].borrow().deref() {
+            Value::Closure(c) => c.get_chunk(),
+            Value::Bound(b) => b.get_closure().get_chunk(),
+            _ => panic!("no chunk"),
         }
     }
 
@@ -109,6 +110,15 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::Method => {
+                    let constant = self.read_constant().clone();
+                    let method_name = if let Value::Str(s) = constant {
+                        s
+                    } else {
+                        panic!("Unable to get class name from table");
+                    };
+                    self.define_method(&method_name);
+                }
                 OpCode::SetProperty => {
                     let instance = if let Value::Instance(i) = self.peek(1).borrow().clone() {
                         Some(i)
@@ -153,10 +163,12 @@ impl VM {
                         panic!("Unable to get class name from table");
                     };
 
-                    if let Some(value) = instance.unwrap().get_field(&field_name) {
+                    if let Some(value) = instance.as_ref().unwrap().get_field(&field_name) {
                         self.pop(); // Instance
                         self.push(value.clone());
-                    } else {
+                    }
+
+                    if !self.bind_method(instance.unwrap().get_class(), &field_name) {
                         return self.runtime_error(&format!("Undefined property '{field_name}'."));
                     }
                 }
@@ -312,6 +324,18 @@ impl VM {
         }
     }
 
+    fn define_method(&mut self, name: &str) {
+        let method = self.peek(0).borrow().clone();
+        let klass = if let Value::Class(klass) = self.peek(1).borrow().clone() {
+            Some(klass)
+        } else {
+            panic!("compiler bug - no class found at stack[-2]");
+        };
+
+        klass.unwrap().add_method(name, &method);
+        self.pop();
+    }
+
     fn push(&mut self, value: Value) {
         self.stack.push(Rc::new(RefCell::new(value)));
     }
@@ -324,15 +348,17 @@ impl VM {
         &self.stack[self.stack.len() - distance - 1]
     }
 
-    fn call(&mut self, arg_count: usize) -> bool {
-        let arity = if let Value::Closure(callee) = self.peek(arg_count).borrow().deref() {
+    fn call(&mut self, closure: Rc<Closure>, arg_count: usize) -> bool {
+        let arity = closure.arity();
+        /*if let Value::Closure(callee) = self.peek(arg_count).borrow().deref() {
             callee.arity()
         } else {
             panic!(
                 "tried to call a non-function: {:?}",
                 self.peek(arg_count).borrow()
             );
-        };
+        };*/
+
         if arity != arg_count {
             let _ = self.runtime_error(&format!("Expected {arity} arguments but got {arg_count}."));
             return false;
@@ -355,6 +381,9 @@ impl VM {
     fn call_value(&mut self, arg_count: usize) -> bool {
         let callee = self.peek(arg_count).borrow().clone();
         let success = match callee {
+            Value::Bound(method) => {
+                return self.call(method.get_closure(), arg_count);
+            }
             Value::Class(klass) => {
                 let stack_top = self.stack.len();
                 self.stack[stack_top - arg_count - 1] =
@@ -362,8 +391,8 @@ impl VM {
                 true
             }
 
-            Value::Closure(_) => {
-                return self.call(arg_count);
+            Value::Closure(closure) => {
+                return self.call(closure, arg_count);
             }
             Value::Native(f) => {
                 let stack_top = self.stack.len();
@@ -380,6 +409,19 @@ impl VM {
         }
 
         success
+    }
+
+    fn bind_method(&mut self, klass: Rc<Class>, name: &str) -> bool {
+        if let Some(method) = klass.get_method(name) {
+            let value = self.peek(0).borrow().clone();
+            let bound = Rc::new(BoundMethod::new(&value, &method));
+            self.pop();
+            self.push(Value::Bound(bound));
+            true
+        } else {
+            let _ = self.runtime_error("Undefined property '{name}'.");
+            false
+        }
     }
 
     fn reset_stack(&mut self) {

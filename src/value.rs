@@ -5,6 +5,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::rc::Rc;
 
+use crate::bound_method::*;
 use crate::class::*;
 use crate::closure::*;
 use crate::function::*;
@@ -31,6 +32,7 @@ pub enum Value {
     Closure(Rc<Closure>),
     Class(Rc<Class>),
     Instance(Rc<Instance>),
+    Bound(Rc<BoundMethod>),
 }
 
 impl PartialOrd for Value {
@@ -71,7 +73,8 @@ impl Clone for Value {
             Value::Native(n) => Value::Native(Rc::clone(n)),
             Value::Closure(c) => Value::Closure(Rc::clone(c)),
             Value::Class(c) => Value::Class(Rc::clone(c)),
-            Value::Instance(c) => Value::Instance(Rc::clone(c)),
+            Value::Instance(i) => Value::Instance(Rc::clone(i)),
+            Value::Bound(b) => Value::Bound(Rc::clone(b)),
         }
     }
 }
@@ -88,6 +91,7 @@ impl Display for Value {
             Value::Closure(closure) => write!(f, "{closure}"),
             Value::Class(klass) => write!(f, "{klass}"),
             Value::Instance(instance) => write!(f, "{instance}"),
+            Value::Bound(bound_method) => write!(f, "{bound_method}"),
         }
     }
 }

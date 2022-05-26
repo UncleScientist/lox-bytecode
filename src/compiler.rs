@@ -769,6 +769,7 @@ impl Compiler {
     }
 
     fn function(&mut self) {
+        // add a ChunkType parameter?
         let prev_compiler = self.result.replace(Rc::new(CompileResult::new(
             self.parser.previous.lexeme.clone(),
             ChunkType::Function,
@@ -819,15 +820,33 @@ impl Compiler {
         }
     }
 
+    fn method(&mut self) {
+        self.consume(TokenType::Identifier, "Expect method name.");
+        let parse_token = self.parser.previous.clone();
+        let constant = self.identifier_constant(&parse_token);
+
+        self.function();
+        self.emit_bytes(OpCode::Method, constant);
+    }
+
     fn class_declaration(&mut self) {
         self.consume(TokenType::Identifier, "Expect class name.");
-        let constant = self.parser.previous.clone();
-        let name_constant = self.identifier_constant(&constant);
+        let class_name = self.parser.previous.clone();
+        let name_constant = self.identifier_constant(&class_name);
+
         self.declare_variable();
         self.emit_bytes(OpCode::Class, name_constant);
         self.define_variable(name_constant);
+
+        self.named_variable(&class_name, false);
         self.consume(TokenType::LeftBrace, "Expect '{{' before class body.");
+
+        while !self.check(TokenType::RightBrace) && !self.check(TokenType::Eof) {
+            self.method();
+        }
+
         self.consume(TokenType::RightBrace, "Expect '}' after class body.");
+        self.emit_byte(OpCode::Pop);
     }
 
     fn fun_declaration(&mut self) {
