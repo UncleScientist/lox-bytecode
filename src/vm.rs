@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::{hash_map::Entry, HashMap};
-use std::ops::Deref;
 use std::rc::Rc;
 
 use crate::{
@@ -16,7 +15,7 @@ pub struct VM {
 
 #[derive(Debug)]
 struct CallFrame {
-    closure: usize, // index into VM.stack
+    closure: Rc<Closure>, // index into VM.stack
     ip: RefCell<usize>,
     slots: usize,
 }
@@ -66,21 +65,11 @@ impl VM {
     }
 
     fn get_upvalue(&self, offset: usize) -> Rc<RefCell<Value>> {
-        let position = self.current_frame().closure;
-        if let Value::Closure(c) = self.stack[position].borrow().deref() {
-            c.get_upvalue(offset)
-        } else {
-            panic!("no upvalue");
-        }
+        self.current_frame().closure.get_upvalue(offset)
     }
 
     fn set_upvalue(&self, offset: usize, value: &Rc<RefCell<Value>>) {
-        let position = self.current_frame().closure;
-        if let Value::Closure(c) = self.stack[position].borrow().deref() {
-            c.modify(offset, value)
-        } else {
-            panic!("no upvalue");
-        }
+        self.current_frame().closure.modify(offset, value);
     }
 
     fn capture_upvalue(&self, offset: usize) -> Rc<RefCell<Value>> {
@@ -88,12 +77,7 @@ impl VM {
     }
 
     fn chunk(&self) -> Rc<Chunk> {
-        let position = self.current_frame().closure;
-        match self.stack[position].borrow().deref() {
-            Value::Closure(c) => c.get_chunk(),
-            Value::Bound(b) => b.get_closure().get_chunk(),
-            _ => panic!("no chunk"),
-        }
+        self.current_frame().closure.get_chunk()
     }
 
     fn run(&mut self) -> Result<(), InterpretResult> {
@@ -151,6 +135,7 @@ impl VM {
                     } else {
                         None
                     };
+                    // xyzzy
 
                     if instance.is_none() {
                         return self.runtime_error("Only instances have properties.");
@@ -160,15 +145,13 @@ impl VM {
                     let field_name = if let Value::Str(s) = constant {
                         s
                     } else {
-                        panic!("Unable to get class name from table");
+                        panic!("Unable to get field name from table");
                     };
 
                     if let Some(value) = instance.as_ref().unwrap().get_field(&field_name) {
                         self.pop(); // Instance
                         self.push(value.clone());
-                    }
-
-                    if !self.bind_method(instance.unwrap().get_class(), &field_name) {
+                    } else if !self.bind_method(instance.unwrap().get_class(), &field_name) {
                         return self.runtime_error(&format!("Undefined property '{field_name}'."));
                     }
                 }
@@ -350,15 +333,6 @@ impl VM {
 
     fn call(&mut self, closure: Rc<Closure>, arg_count: usize) -> bool {
         let arity = closure.arity();
-        /*if let Value::Closure(callee) = self.peek(arg_count).borrow().deref() {
-            callee.arity()
-        } else {
-            panic!(
-                "tried to call a non-function: {:?}",
-                self.peek(arg_count).borrow()
-            );
-        };*/
-
         if arity != arg_count {
             let _ = self.runtime_error(&format!("Expected {arity} arguments but got {arg_count}."));
             return false;
@@ -370,7 +344,7 @@ impl VM {
         }
 
         self.frames.push(CallFrame {
-            closure: self.stack.len() - arg_count - 1,
+            closure: Rc::clone(&closure),
             ip: RefCell::new(0),
             slots: self.stack.len() - arg_count - 1,
         });
@@ -382,6 +356,9 @@ impl VM {
         let callee = self.peek(arg_count).borrow().clone();
         let success = match callee {
             Value::Bound(method) => {
+                let stack_top = self.stack.len();
+                self.stack[stack_top - arg_count - 1] =
+                    Rc::new(RefCell::new(method.get_receiver()));
                 return self.call(method.get_closure(), arg_count);
             }
             Value::Class(klass) => {
@@ -419,7 +396,7 @@ impl VM {
             self.push(Value::Bound(bound));
             true
         } else {
-            let _ = self.runtime_error("Undefined property '{name}'.");
+            let _ = self.runtime_error(format!("Undefined property '{name}'."));
             false
         }
     }
@@ -469,13 +446,12 @@ impl VM {
     fn runtime_error<T: Into<String>>(&mut self, err_msg: T) -> Result<(), InterpretResult> {
         eprintln!("{}", err_msg.into());
         for frame in self.frames.iter().rev() {
-            if let Value::Closure(closure) = self.stack[frame.closure].borrow().deref() {
-                let instruction = *frame.ip.borrow() - 1;
-                let line = closure.get_chunk().get_line(instruction);
-                eprintln!("[line {line}] in {}", closure.stack_name());
-            } else {
-                panic!("tried to get a stack trace of a non-function");
-            }
+            let instruction = *frame.ip.borrow() - 1;
+            let line = self.chunk().get_line(instruction);
+            eprintln!(
+                "[line {line}] in {}",
+                self.current_frame().closure.stack_name()
+            );
         }
         self.reset_stack();
 

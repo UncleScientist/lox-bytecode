@@ -94,8 +94,8 @@ impl Chunk {
     }
 
     #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
-    pub fn disassemble<T: Into<String>>(&self, name: T) {
-        println!("== {} ==", name.into());
+    pub fn disassemble(&self, name: &str) {
+        println!("== {} ==", name);
 
         let mut offset = 0;
         while offset < self.code.len() {

@@ -6,7 +6,6 @@ use crate::value::*;
 
 #[derive(Debug)]
 pub struct BoundMethod {
-    #[allow(dead_code)]
     receiver: Value,
     method: Rc<Closure>,
 }
@@ -21,6 +20,10 @@ impl BoundMethod {
 
     pub fn get_closure(&self) -> Rc<Closure> {
         Rc::clone(&self.method)
+    }
+
+    pub fn get_receiver(&self) -> Value {
+        self.receiver.clone()
     }
 }
 

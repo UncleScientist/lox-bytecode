@@ -15,10 +15,11 @@ pub struct Compiler {
     result: RefCell<Rc<CompileResult>>,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum ChunkType {
     Script,
     Function,
+    Method,
 }
 
 impl Default for ChunkType {
@@ -27,13 +28,13 @@ impl Default for ChunkType {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 struct UpvalueData {
     is_local: bool,
     index: u8,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct CompileResult {
     chunk: RefCell<Chunk>,
     locals: RefCell<Vec<Local>>,
@@ -55,10 +56,22 @@ enum FindResult {
 impl CompileResult {
     fn new<T: Into<String>>(name: T, ctype: ChunkType) -> Self {
         let locals = RefCell::new(Vec::new());
-        locals.borrow_mut().push(Local {
-            name: Token::default(),
-            depth: Some(0),
-            is_captured: false,
+        locals.borrow_mut().push(if ctype != ChunkType::Function {
+            Local {
+                name: Token {
+                    ttype: TokenType::This,
+                    lexeme: String::from("this"),
+                    line: 0,
+                },
+                depth: Some(0),
+                is_captured: false,
+            }
+        } else {
+            Local {
+                name: Token::default(),
+                depth: Some(0),
+                is_captured: false,
+            }
         });
         Self {
             locals,
@@ -97,7 +110,6 @@ impl CompileResult {
         let mut new_local = self.locals.borrow()[index].clone();
         new_local.is_captured = true;
         self.locals.borrow_mut()[index] = new_local;
-        println!("capturing index {index}");
     }
 
     fn resolve_local(&self, name: &Token) -> Result<Option<u8>, FindResult> {
@@ -207,7 +219,7 @@ impl CompileResult {
     }
 
     #[cfg(feature = "debug_print_code")]
-    fn disassemble<T: Into<String>>(&self, name: T) {
+    fn disassemble(&self, name: &str) {
         self.chunk.borrow().disassemble(name);
     }
 }
@@ -242,7 +254,7 @@ enum Precedence {
     Primary,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Local {
     name: Token,
     depth: Option<usize>,
@@ -352,6 +364,8 @@ impl Compiler {
             infix: Some(Compiler::dot),
             precedence: Precedence::Call,
         };
+
+        rules[TokenType::This as usize].prefix = Some(Compiler::this_);
 
         Self {
             rules,
@@ -496,7 +510,7 @@ impl Compiler {
                 self.result.borrow().current_function.borrow().clone()
             };
             if !*self.parser.had_error.borrow() {
-                self.result.borrow().disassemble(name)
+                self.result.borrow().disassemble(&name)
             }
         }
     }
@@ -641,6 +655,10 @@ impl Compiler {
         self.named_variable(&name, can_assign);
     }
 
+    fn this_(&mut self, _: bool) {
+        self.variable(false);
+    }
+
     fn unary(&mut self, _: bool) {
         let operator_type = self.parser.previous.ttype;
 
@@ -768,11 +786,10 @@ impl Compiler {
         self.consume(TokenType::RightBrace, "Expect '}' after block.");
     }
 
-    fn function(&mut self) {
-        // add a ChunkType parameter?
+    fn function(&mut self, ctype: ChunkType) {
         let prev_compiler = self.result.replace(Rc::new(CompileResult::new(
             self.parser.previous.lexeme.clone(),
-            ChunkType::Function,
+            ctype,
         )));
         self.result.borrow().enclosing.replace(Some(prev_compiler));
 
@@ -825,7 +842,7 @@ impl Compiler {
         let parse_token = self.parser.previous.clone();
         let constant = self.identifier_constant(&parse_token);
 
-        self.function();
+        self.function(ChunkType::Method);
         self.emit_bytes(OpCode::Method, constant);
     }
 
@@ -852,7 +869,7 @@ impl Compiler {
     fn fun_declaration(&mut self) {
         let global = self.parse_variable("Expect function name.");
         self.mark_initialized();
-        self.function();
+        self.function(ChunkType::Function);
         self.define_variable(global);
     }
 

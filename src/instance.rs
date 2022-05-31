@@ -26,8 +26,8 @@ impl Instance {
         }
     }
 
-    pub fn get_field<T: Into<String>>(&self, name: T) -> Option<Value> {
-        self.fields.borrow().get(&name.into()).cloned()
+    pub fn get_field(&self, name: &str) -> Option<Value> {
+        self.fields.borrow().get(&name.to_string()).cloned()
     }
 
     pub fn set_field<T: Into<String>>(&self, name: T, value: &Value) {
