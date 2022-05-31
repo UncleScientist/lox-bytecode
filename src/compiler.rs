@@ -35,6 +35,19 @@ struct UpvalueData {
 }
 
 #[derive(Debug, Default)]
+struct ClassCompiler {
+    enclosing: RefCell<Option<Rc<ClassCompiler>>>,
+}
+
+impl ClassCompiler {
+    fn new() -> Self {
+        Self {
+            enclosing: RefCell::new(None),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 struct CompileResult {
     chunk: RefCell<Chunk>,
     locals: RefCell<Vec<Local>>,
@@ -44,6 +57,7 @@ struct CompileResult {
     ctype: ChunkType,
     enclosing: RefCell<Option<Rc<CompileResult>>>,
     upvalues: RefCell<Vec<UpvalueData>>,
+    current_class: RefCell<Option<Rc<ClassCompiler>>>,
 }
 
 enum FindResult {
@@ -855,6 +869,8 @@ impl Compiler {
         self.emit_bytes(OpCode::Class, name_constant);
         self.define_variable(name_constant);
 
+        // TODO: replace current class with a new one, and point enclosing back to the prev one
+
         self.named_variable(&class_name, false);
         self.consume(TokenType::LeftBrace, "Expect '{{' before class body.");
 
@@ -864,6 +880,9 @@ impl Compiler {
 
         self.consume(TokenType::RightBrace, "Expect '}' after class body.");
         self.emit_byte(OpCode::Pop);
+
+        // replace the new class with the previous one
+        // self.result.borrow().current.class.replace(prev);
     }
 
     fn fun_declaration(&mut self) {
