@@ -361,16 +361,27 @@ impl VM {
                     Rc::new(RefCell::new(method.get_receiver()));
                 return self.call(method.get_closure(), arg_count);
             }
+
             Value::Class(klass) => {
                 let stack_top = self.stack.len();
+                let init = klass.get_method("init");
                 self.stack[stack_top - arg_count - 1] =
                     Rc::new(RefCell::new(Value::Instance(Rc::new(Instance::new(klass)))));
-                true
+                if let Some(initializer) = init {
+                    self.call(initializer, arg_count)
+                } else if arg_count != 0 {
+                    let _ =
+                        self.runtime_error(format!("Expected 0 arguments but got {arg_count}."));
+                    false
+                } else {
+                    true
+                }
             }
 
             Value::Closure(closure) => {
                 return self.call(closure, arg_count);
             }
+
             Value::Native(f) => {
                 let stack_top = self.stack.len();
                 let result = f.call(arg_count, &self.stack[stack_top - arg_count..stack_top]);

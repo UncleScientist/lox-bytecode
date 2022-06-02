@@ -21,6 +21,7 @@ enum ChunkType {
     Script,
     Function,
     Method,
+    Initializer,
 }
 
 impl Default for ChunkType {
@@ -482,7 +483,11 @@ impl Compiler {
     }
 
     fn emit_return(&mut self) {
-        self.emit_byte(OpCode::Nil);
+        if self.result.borrow().ctype == ChunkType::Initializer {
+            self.emit_bytes(OpCode::GetLocal, 0);
+        } else {
+            self.emit_byte(OpCode::Nil);
+        }
         self.emit_byte(OpCode::Return);
     }
 
@@ -861,7 +866,11 @@ impl Compiler {
         let parse_token = self.parser.previous.clone();
         let constant = self.identifier_constant(&parse_token);
 
-        self.function(ChunkType::Method);
+        self.function(if parse_token.lexeme == "init" {
+            ChunkType::Initializer
+        } else {
+            ChunkType::Method
+        });
         self.emit_bytes(OpCode::Method, constant);
     }
 
@@ -1020,6 +1029,9 @@ impl Compiler {
         if self.is_match(TokenType::SemiColon) {
             self.emit_return();
         } else {
+            if self.result.borrow().ctype == ChunkType::Initializer {
+                self.error("Can't return a value from an initializer.");
+            }
             self.expression();
             self.consume(TokenType::SemiColon, "Expect ';' after return value.");
             self.emit_byte(OpCode::Return);
