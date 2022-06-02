@@ -447,11 +447,8 @@ impl VM {
         eprintln!("{}", err_msg.into());
         for frame in self.frames.iter().rev() {
             let instruction = *frame.ip.borrow() - 1;
-            let line = self.chunk().get_line(instruction);
-            eprintln!(
-                "[line {line}] in {}",
-                self.current_frame().closure.stack_name()
-            );
+            let line = frame.closure.get_chunk().get_line(instruction);
+            eprintln!("[line {line}] in {}", frame.closure.stack_name());
         }
         self.reset_stack();
 
