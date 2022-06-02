@@ -385,7 +385,7 @@ impl VM {
             Value::Native(f) => {
                 let stack_top = self.stack.len();
                 let result = f.call(arg_count, &self.stack[stack_top - arg_count..stack_top]);
-                self.stack.truncate(stack_top - arg_count + 1);
+                self.stack.truncate(stack_top - (arg_count + 1));
                 self.push(result);
                 true
             }
