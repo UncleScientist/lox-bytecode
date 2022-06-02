@@ -328,7 +328,15 @@ impl VM {
             panic!("compiler bug - no class found at stack[-2]");
         };
 
-        klass.unwrap().add_method(name, &method);
+        if name == "init" {
+            if let Value::Closure(closure) = method {
+                klass.unwrap().set_init_method(closure)
+            } else {
+                panic!("method should have been a closure");
+            }
+        } else {
+            klass.unwrap().add_method(name, &method);
+        }
         self.pop();
     }
 
@@ -377,7 +385,7 @@ impl VM {
 
             Value::Class(klass) => {
                 let stack_top = self.stack.len();
-                let init = klass.get_method("init");
+                let init = klass.get_init_method();
                 self.stack[stack_top - arg_count - 1] =
                     Rc::new(RefCell::new(Value::Instance(Rc::new(Instance::new(klass)))));
                 if let Some(initializer) = init {
