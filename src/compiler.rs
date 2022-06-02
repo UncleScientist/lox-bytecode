@@ -13,6 +13,7 @@ pub struct Compiler {
     parser: Parser,
     scanner: Scanner,
     result: RefCell<Rc<CompileResult>>,
+    current_class: RefCell<Option<Rc<ClassCompiler>>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -57,7 +58,6 @@ struct CompileResult {
     ctype: ChunkType,
     enclosing: RefCell<Option<Rc<CompileResult>>>,
     upvalues: RefCell<Vec<UpvalueData>>,
-    current_class: RefCell<Option<Rc<ClassCompiler>>>,
 }
 
 enum FindResult {
@@ -386,6 +386,7 @@ impl Compiler {
             parser: Parser::default(),
             scanner: Scanner::new(&"".to_string()),
             result: RefCell::new(Rc::new(CompileResult::default())),
+            current_class: RefCell::new(None),
         }
     }
 
@@ -670,6 +671,10 @@ impl Compiler {
     }
 
     fn this_(&mut self, _: bool) {
+        if self.current_class.borrow().is_none() {
+            self.error("Can't use 'this' outside of a class.");
+            return;
+        }
         self.variable(false);
     }
 
@@ -869,7 +874,15 @@ impl Compiler {
         self.emit_bytes(OpCode::Class, name_constant);
         self.define_variable(name_constant);
 
-        // TODO: replace current class with a new one, and point enclosing back to the prev one
+        let prev = self
+            .current_class
+            .replace(Some(Rc::new(ClassCompiler::new())));
+        self.current_class
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .enclosing
+            .replace(prev);
 
         self.named_variable(&class_name, false);
         self.consume(TokenType::LeftBrace, "Expect '{{' before class body.");
@@ -883,6 +896,14 @@ impl Compiler {
 
         // replace the new class with the previous one
         // self.result.borrow().current.class.replace(prev);
+        let prev = self
+            .current_class
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .enclosing
+            .replace(None);
+        self.current_class.replace(prev);
     }
 
     fn fun_declaration(&mut self) {
