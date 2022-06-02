@@ -34,6 +34,7 @@ pub enum OpCode {
     GetProperty,
     SetProperty,
     Method,
+    Invoke,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -173,6 +174,7 @@ impl Chunk {
             OpCode::GetProperty => self.constant_instruction("OP_GET_PROPERTY", offset),
             OpCode::SetProperty => self.constant_instruction("OP_SET_PROPERTY", offset),
             OpCode::Method => self.constant_instruction("OP_METHOD", offset),
+            OpCode::Invoke => self.invoke_instruction("OP_INVOKE", offset),
         }
     }
 
@@ -208,6 +210,16 @@ impl Chunk {
         self.constants.print_value(constant as usize);
         println!("'");
         offset + 2
+    }
+
+    #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
+    fn invoke_instruction(&self, name: &str, offset: usize) -> usize {
+        let constant = self.code[offset + 1];
+        let arg_count = self.code[offset + 2];
+        print!("{name:-16} ({arg_count} args) {constant:4} '");
+        self.constants.print_value(constant as usize);
+        println!("'");
+        offset + 3
     }
 }
 
@@ -247,6 +259,7 @@ impl From<u8> for OpCode {
             30 => OpCode::GetProperty,
             31 => OpCode::SetProperty,
             32 => OpCode::Method,
+            33 => OpCode::Invoke,
             _ => unimplemented!("Invalid opcode"),
         }
     }

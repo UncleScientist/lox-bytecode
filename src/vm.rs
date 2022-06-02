@@ -94,6 +94,19 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::Invoke => {
+                    let constant = self.read_constant().clone();
+                    let method_name = if let Value::Str(s) = constant {
+                        s
+                    } else {
+                        panic!("Unable to get field name from table");
+                    };
+
+                    let arg_count = self.read_byte() as usize;
+                    if !self.invoke(method_name.as_str(), arg_count) {
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
                 OpCode::Method => {
                     let constant = self.read_constant().clone();
                     let method_name = if let Value::Str(s) = constant {
@@ -397,6 +410,31 @@ impl VM {
         }
 
         success
+    }
+
+    fn invoke_from_class(&mut self, klass: Rc<Class>, name: &str, arg_count: usize) -> bool {
+        if let Some(closure) = klass.get_method(name) {
+            self.call(closure, arg_count)
+        } else {
+            let _ = self.runtime_error(&format!("Undefined property '{name}'."));
+            false
+        }
+    }
+
+    fn invoke(&mut self, name: &str, arg_count: usize) -> bool {
+        let receiver = self.peek(arg_count).borrow().clone();
+        if let Value::Instance(instance) = receiver {
+            if let Some(value) = instance.get_field(name) {
+                let stack_top = self.stack.len();
+                self.stack[stack_top - arg_count - 1] = Rc::new(RefCell::new(value));
+                self.call_value(arg_count)
+            } else {
+                self.invoke_from_class(instance.get_class(), name, arg_count)
+            }
+        } else {
+            let _ = self.runtime_error("Only instances have methods.");
+            false
+        }
     }
 
     fn bind_method(&mut self, klass: Rc<Class>, name: &str) -> bool {
