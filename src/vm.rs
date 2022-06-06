@@ -94,6 +94,26 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::SuperInvoke => {
+                    let constant = self.read_constant().clone();
+                    let method_name = if let Value::Str(s) = constant {
+                        s
+                    } else {
+                        panic!("Unable to get field name from table");
+                    };
+
+                    let arg_count = self.read_byte() as usize;
+                    let popped_value = self.pop().borrow().clone();
+                    let superclass = if let Value::Class(klass) = popped_value {
+                        klass
+                    } else {
+                        return Err(InterpretResult::RuntimeError);
+                    };
+
+                    if !self.invoke_from_class(superclass, &method_name, arg_count) {
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
                 OpCode::GetSuper => {
                     let constant = self.read_constant().clone();
                     let name = if let Value::Str(s) = constant {

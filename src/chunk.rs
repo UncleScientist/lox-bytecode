@@ -37,6 +37,7 @@ pub enum OpCode {
     Invoke,
     Inherit,
     GetSuper,
+    SuperInvoke,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -179,6 +180,7 @@ impl Chunk {
             OpCode::Invoke => self.invoke_instruction("OP_INVOKE", offset),
             OpCode::Inherit => self.simple_instruction("OP_INHERIT", offset),
             OpCode::GetSuper => self.constant_instruction("OP_GET_SUPER", offset),
+            OpCode::SuperInvoke => self.invoke_instruction("OP_SUPER_INVOKE", offset),
         }
     }
 
@@ -266,6 +268,7 @@ impl From<u8> for OpCode {
             33 => OpCode::Invoke,
             34 => OpCode::Inherit,
             35 => OpCode::GetSuper,
+            36 => OpCode::SuperInvoke,
             _ => unimplemented!("Invalid opcode"),
         }
     }
