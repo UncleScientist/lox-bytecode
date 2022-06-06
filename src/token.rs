@@ -25,6 +25,16 @@ impl Clone for Token {
     }
 }
 
+impl Token {
+    pub fn new(s: &str) -> Self {
+        Token {
+            ttype: TokenType::Undefined,
+            lexeme: s.to_string(),
+            line: 0,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
     LeftParen = 0,

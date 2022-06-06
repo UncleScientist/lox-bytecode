@@ -94,6 +94,23 @@ impl VM {
 
             let instruction: OpCode = self.read_byte().into();
             match instruction {
+                OpCode::GetSuper => {
+                    let constant = self.read_constant().clone();
+                    let name = if let Value::Str(s) = constant {
+                        s
+                    } else {
+                        panic!("Unable to get field name from table");
+                    };
+                    let popped_value = self.pop().borrow().clone();
+                    let superclass = if let Value::Class(klass) = popped_value {
+                        klass
+                    } else {
+                        panic!("no superclass");
+                    };
+                    if !self.bind_method(superclass, &name) {
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
                 OpCode::Inherit => {
                     let superclass_value = self.peek(1).borrow().clone();
                     let superclass = if let Value::Class(c) = superclass_value {
