@@ -45,6 +45,12 @@ impl Class {
     pub fn get_method(&self, name: &str) -> Option<Rc<Closure>> {
         self.methods.borrow().get(name).cloned()
     }
+
+    pub fn copy_methods(&self, superclass: &Self) {
+        for (k, v) in superclass.methods.borrow().iter() {
+            self.methods.borrow_mut().insert(k.clone(), Rc::clone(v));
+        }
+    }
 }
 
 impl Display for Class {

@@ -35,6 +35,7 @@ pub enum OpCode {
     SetProperty,
     Method,
     Invoke,
+    Inherit,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -175,6 +176,7 @@ impl Chunk {
             OpCode::SetProperty => self.constant_instruction("OP_SET_PROPERTY", offset),
             OpCode::Method => self.constant_instruction("OP_METHOD", offset),
             OpCode::Invoke => self.invoke_instruction("OP_INVOKE", offset),
+            OpCode::Inherit => self.simple_instruction("OP_INHERIT", offset),
         }
     }
 
@@ -260,6 +262,7 @@ impl From<u8> for OpCode {
             31 => OpCode::SetProperty,
             32 => OpCode::Method,
             33 => OpCode::Invoke,
+            34 => OpCode::Inherit,
             _ => unimplemented!("Invalid opcode"),
         }
     }
