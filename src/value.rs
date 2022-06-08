@@ -57,6 +57,7 @@ impl PartialEq for Value {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Instance(a), Value::Instance(b)) => Rc::ptr_eq(a, b),
+            (Value::Bound(a), Value::Bound(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }

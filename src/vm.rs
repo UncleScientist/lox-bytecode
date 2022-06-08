@@ -7,6 +7,11 @@ use crate::{
     value::*,
 };
 
+enum Operands {
+    TwoNumbers,
+    NumbersOrStrings,
+}
+
 pub struct VM {
     stack: Vec<Rc<RefCell<Value>>>,
     frames: Vec<CallFrame>,
@@ -297,7 +302,7 @@ impl VM {
                             let u = v.clone();
                             self.push(u);
                         } else {
-                            return self.runtime_error(&format!("Undefined variable {s}."));
+                            return self.runtime_error(&format!("Undefined variable '{s}'."));
                         }
                     } else {
                         panic!("Unable to read constant from table");
@@ -352,12 +357,16 @@ impl VM {
                     let a = self.pop();
                     self.push(Value::Boolean(a == b));
                 }
-                OpCode::Greater => self.binary_op(|a, b| Value::Boolean(a > b))?,
-                OpCode::Less => self.binary_op(|a, b| Value::Boolean(a < b))?,
-                OpCode::Add => self.binary_op(|a, b| a + b)?,
-                OpCode::Subtract => self.binary_op(|a, b| a - b)?,
-                OpCode::Multiply => self.binary_op(|a, b| a * b)?,
-                OpCode::Divide => self.binary_op(|a, b| a / b)?,
+                OpCode::Greater => {
+                    self.binary_op(Operands::TwoNumbers, |a, b| Value::Boolean(a > b))?
+                }
+                OpCode::Less => {
+                    self.binary_op(Operands::TwoNumbers, |a, b| Value::Boolean(a < b))?
+                }
+                OpCode::Add => self.binary_op(Operands::NumbersOrStrings, |a, b| a + b)?,
+                OpCode::Subtract => self.binary_op(Operands::TwoNumbers, |a, b| a - b)?,
+                OpCode::Multiply => self.binary_op(Operands::TwoNumbers, |a, b| a * b)?,
+                OpCode::Divide => self.binary_op(Operands::TwoNumbers, |a, b| a / b)?,
                 OpCode::Not => {
                     let value = self.pop().borrow().clone();
                     self.push(Value::Boolean(value.is_falsey()))
@@ -533,7 +542,11 @@ impl VM {
         self.chunk().get_constant(index).clone()
     }
 
-    fn binary_op(&mut self, op: fn(a: &Value, b: &Value) -> Value) -> Result<(), InterpretResult> {
+    fn binary_op(
+        &mut self,
+        op_type: Operands,
+        op: fn(a: &Value, b: &Value) -> Value,
+    ) -> Result<(), InterpretResult> {
         if self.peek(0).borrow().is_string() && self.peek(1).borrow().is_string() {
             self.concatenate()
         } else if self.peek(0).borrow().is_number() && self.peek(1).borrow().is_number() {
@@ -542,8 +555,12 @@ impl VM {
             self.push(op(&a.borrow(), &b.borrow()));
             Ok(())
         } else {
-            println!("{:?} and {:?}", self.peek(0), self.peek(1));
-            self.runtime_error("Operands must be two numbers or two strings.")
+            match op_type {
+                Operands::TwoNumbers => self.runtime_error("Operands must be numbers."),
+                Operands::NumbersOrStrings => {
+                    self.runtime_error("Operands must be two numbers or two strings.")
+                }
+            }
         }
     }
 

@@ -63,6 +63,7 @@ struct CompileResult {
     upvalues: RefCell<Vec<UpvalueData>>,
 }
 
+#[derive(Debug)]
 enum FindResult {
     TooManyVariables,
     Uninitialized,
@@ -176,12 +177,12 @@ impl CompileResult {
             return Ok(pos as u8);
         }
 
-        let upvalue_count = self.upvalues.borrow().len() as u8;
-        if upvalue_count == 255 {
+        let upvalue_count = self.upvalues.borrow().len();
+        if upvalue_count > 255 {
             return Err(FindResult::TooManyVariables);
         }
         self.upvalues.borrow_mut().push(upvalue);
-        Ok(upvalue_count)
+        Ok(upvalue_count as u8)
     }
 
     fn in_scope(&self) -> bool {
@@ -256,7 +257,7 @@ struct ParseRule {
     precedence: Precedence,
 }
 
-#[derive(PartialEq, PartialOrd, Copy, Clone)]
+#[derive(PartialEq, PartialOrd, Copy, Clone, Debug)]
 enum Precedence {
     None = 0,
     Assignment, // =
@@ -648,7 +649,7 @@ impl Compiler {
     fn resolve_upvalue(&self, name: &Token) -> Option<u8> {
         match self.result.borrow().resolve_upvalue(name) {
             Err(FindResult::TooManyVariables) => {
-                self.error("TODO - error messsage");
+                self.error("Too many closure variables in function.");
                 None
             }
             Ok(val) => val,
@@ -772,7 +773,7 @@ impl Compiler {
     fn declare_variable(&mut self) {
         if self.result.borrow().in_scope() {
             let name = &self.parser.previous.lexeme;
-            if let FindResult::Depth(_) = self.result.borrow().find_variable(name) {
+            if let FindResult::Depth(0) = self.result.borrow().find_variable(name) {
                 self.error("Already a variable with this name in this scope.");
             } else {
                 self.add_local(&self.parser.previous);
@@ -857,7 +858,7 @@ impl Compiler {
         if !self.check(TokenType::RightParen) {
             loop {
                 if self.result.borrow().inc_arity() > 255 {
-                    self.error_at_current("Can't have more than 255 paramters.");
+                    self.error_at_current("Can't have more than 255 parameters.");
                 }
 
                 let constant = self.parse_variable("Expect parameter name.");
@@ -1006,6 +1007,8 @@ impl Compiler {
         self.define_variable(global);
     }
 
+    // (a) = "value";
+    // foo.bar(whatever).baz = "value";
     fn expression_statement(&mut self) {
         self.expression();
         self.consume(TokenType::SemiColon, "Expect ';' after expression.");
