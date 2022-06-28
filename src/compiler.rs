@@ -773,8 +773,12 @@ impl Compiler {
     fn declare_variable(&mut self) {
         if self.result.borrow().in_scope() {
             let name = &self.parser.previous.lexeme;
-            if let FindResult::Depth(0) = self.result.borrow().find_variable(name) {
-                self.error("Already a variable with this name in this scope.");
+            if let FindResult::Depth(d) = self.result.borrow().find_variable(name) {
+                if d < *self.result.borrow().scope_depth.borrow() as u8 {
+                    self.add_local(&self.parser.previous);
+                } else {
+                    self.error("Already a variable with this name in this scope.");
+                }
             } else {
                 self.add_local(&self.parser.previous);
             }
