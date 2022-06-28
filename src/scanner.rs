@@ -202,10 +202,14 @@ impl Scanner {
             self.advance();
         }
 
-        if self.peek() == '.' && self.peek_next().unwrap().is_digit(10) {
-            self.advance();
-            while self.peek().is_digit(10) {
-                self.advance();
+        if self.peek() == '.' {
+            if let Some(ch) = self.peek_next() {
+                if ch.is_digit(10) {
+                    self.advance();
+                    while self.peek().is_digit(10) {
+                        self.advance();
+                    }
+                }
             }
         }
 
@@ -237,7 +241,7 @@ impl Scanner {
     }
 
     fn peek_next(&self) -> Option<char> {
-        if self.is_at_end() {
+        if self.current + 1 >= self.source.len() {
             None
         } else {
             Some(self.source[self.current + 1])
