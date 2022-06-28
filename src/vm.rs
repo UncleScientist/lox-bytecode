@@ -249,7 +249,8 @@ impl VM {
                     let constant = self.read_constant().clone();
                     if let Value::Func(function) = constant {
                         let upvalue_count = function.upvalues();
-                        let closure = Closure::new(function);
+                        let closure = Rc::new(Closure::new(function));
+                        self.push(Value::Closure(Rc::clone(&closure)));
                         for _ in 0..upvalue_count {
                             let is_local = self.read_byte() != 0;
                             let index = self.read_byte() as usize;
@@ -261,7 +262,6 @@ impl VM {
                             };
                             closure.push_upvalue(&captured);
                         }
-                        self.push(Value::Closure(Rc::new(closure)));
                     } else {
                         panic!("Tried to read function from constant table but got {constant:?}");
                     }
