@@ -742,10 +742,9 @@ impl Compiler {
                 if let Some(infix_rule) = self.rules[self.parser.previous.ttype as usize].infix {
                     infix_rule(self, can_assign);
                 }
-
-                if can_assign && self.is_match(TokenType::Assign) {
-                    self.error("Invalid assignment target.");
-                }
+            }
+            if can_assign && self.is_match(TokenType::Assign) {
+                self.error("Invalid assignment target.");
             }
         } else {
             self.error("Expect expression.");
